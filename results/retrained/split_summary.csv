@@ -1,0 +1,13 @@
+split,label,class_index,images,pct_of_included_class,pct_of_split,target_images,groups,eval_eligible_images,eval_eligible_groups,synthetic_images,augmented_images,exact_duplicate_images
+train,Healthy,0,8348,70.0,55.24,8348.2,3197,3289,3194,2579,3513,110
+train,Alternaria,1,6763,69.99,44.76,6764.1,2315,2457,2311,2322,3810,1504
+train,ALL,,15111,69.99,100.0,15112.3,5512,5746,5505,4901,7323,1614
+val,Healthy,0,1789,15.0,55.23,1788.9,686,858,686,0,928,57
+val,Alternaria,1,1450,15.01,44.77,1449.5,405,422,405,0,1026,361
+val,ALL,,3239,15.0,100.0,3238.3,1091,1280,1091,0,1954,418
+test,Healthy,0,1789,15.0,55.23,1788.9,685,875,685,0,910,63
+test,Alternaria,1,1450,15.01,44.77,1449.5,406,424,406,0,1026,378
+test,ALL,,3239,15.0,100.0,3238.3,1091,1299,1091,0,1936,441
+excluded,Healthy,0,0,,0.0,,0,0,0,0,0,0
+excluded,Alternaria,1,602,,100.0,,103,0,0,0,602,592
+excluded,ALL,,602,,100.0,,103,0,0,0,602,592

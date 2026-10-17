@@ -1,0 +1,38 @@
+{
+  "model_name": "resnet18",
+  "device": "cuda",
+  "seed": 42,
+  "epochs_requested": 5,
+  "epochs_completed": 5,
+  "batch_size": 32,
+  "initial_lr": 0.0001,
+  "total_training_time_sec": 524.99,
+  "total_params": 11242434,
+  "trainable_params": 8459650,
+  "class_mapping": {
+    "Healthy": 0,
+    "Alternaria": 1
+  },
+  "class_weights": [
+    0.905067,
+    1.117182
+  ],
+  "train_manifest": "results/retrained/train_manifest.csv",
+  "val_manifest": "results/retrained/val_manifest.csv",
+  "train_manifest_sha256": "0822ad5ce148d7ef67b3392a6da5ed7216cea08f9339d07a2839b7929ff2a112",
+  "val_manifest_sha256": "93eae293c450907c42f8edea11f355dbcebec45cf4a10a6e99d2c454ecb9c9fc",
+  "test_manifest_used_during_training": false,
+  "train_samples": 15111,
+  "val_samples": 3239,
+  "train_synthetic_samples": 4901,
+  "val_synthetic_samples": 0,
+  "train_groups": 5512,
+  "val_groups": 1091,
+  "best_epoch": 4,
+  "best_val_accuracy": 0.9928990429144797,
+  "best_val_loss": 0.018156496696444497,
+  "checkpoint_path": "/content/apple_leaf/models/retrained/resnet18_best.pth",
+  "checkpoint_selection_criterion": "Highest validation accuracy with tie-breaker on lowest validation loss",
+  "pytorch_version": "2.11.0+cu130",
+  "torchvision_version": "0.26.0+cu130"
+}

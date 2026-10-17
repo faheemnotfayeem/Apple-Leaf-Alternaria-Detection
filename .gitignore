@@ -1,0 +1,34 @@
+# ---- data and trained weights (too large for GitHub; see README for how to obtain them)
+DATASET/
+models/
+*.pth
+*.pt
+!code/leaf_prototype.pt
+
+# ---- local backups and upload bundles
+backups/
+code/colab/upload/*.zip
+
+# ---- python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# ---- node / next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+npm-debug.log*
+
+# ---- OS and editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# ---- misc
+*.log

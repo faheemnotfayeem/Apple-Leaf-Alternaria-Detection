@@ -1,0 +1,14 @@
+{
+  "classes": [
+    "Healthy",
+    "Alternaria"
+  ],
+  "class_to_idx": {
+    "Healthy": 0,
+    "Alternaria": 1
+  },
+  "idx_to_class": {
+    "0": "Healthy",
+    "1": "Alternaria"
+  }
+}
