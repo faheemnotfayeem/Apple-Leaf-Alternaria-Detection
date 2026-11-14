@@ -22,8 +22,7 @@ confirmed diagnosis.
 
 ## Model weights
 
-The trained checkpoints are too large for a Git repository, so they are published as assets on the
-[Releases](../../releases) page instead:
+The trained checkpoints are not included because they are too large for a Git repository:
 
 | File | Size |
 |---|---:|
@@ -32,8 +31,9 @@ The trained checkpoints are too large for a Git repository, so they are publishe
 | `vgg16_best.pth` | ~1.5 GB |
 | `vgg19_best.pth` | ~1.5 GB |
 
-Download the ones you need into `models/retrained/`. MobileNetV2 alone is enough to run the website.
-Without a checkpoint the backend still starts (it prints a warning), but predictions fail.
+To get them, either retrain with the scripts in [Reproducing the pipeline](#reproducing-the-pipeline)
+or ask the team for a copy. Place the files in `models/retrained/`. MobileNetV2 alone is enough to run
+the website. Without a checkpoint the backend still starts (it prints a warning), but predictions fail.
 
 ## Data sources
 
@@ -124,6 +124,19 @@ python code/sync_frontend_metrics.py         # regenerate frontend/src/data/proj
 
 Research prototype. Predictions are model outputs for screening and should be confirmed by a
 qualified agricultural expert or local horticulture extension service before any treatment decision.
+
+## Team
+
+Final-year B.Tech (Computer Science & Engineering) project, Government College of Engineering &
+Technology, Ganderbal, J&K, November 2026.
+
+- Mir Owais Bilal
+- Shakir Mustehsin
+- Haris Ahmad Kaboo
+- Mohammad Faheem
+
+Under the guidance of Ms. Aasia Quyoum, Sr. Assistant Professor, Department of Computer Science and
+Engineering.
 
 ## License
 
