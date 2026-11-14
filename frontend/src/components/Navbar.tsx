@@ -31,11 +31,11 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto glass border rounded-full shadow-lift">
         <div className="flex items-center justify-between h-14 pl-3 pr-2 sm:pl-4 sm:pr-2.5">
           {/* Wordmark */}
-          <Link href="/" className="flex items-center gap-2.5" aria-label="Apple Leaf Alternaria Detection, home">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="AppleAlt, home">
             <span className="w-9 h-9 rounded-full bg-forest-700 text-white flex items-center justify-center">
               <Leaf className="w-4 h-4" strokeWidth={1.75} />
             </span>
-            <span className="font-medium text-[15px] text-ink tracking-tight">Apple Leaf Alternaria Detection</span>
+            <span className="font-medium text-[15px] text-ink tracking-tight">AppleAlt</span>
           </Link>
 
           {/* Desktop navigation */}

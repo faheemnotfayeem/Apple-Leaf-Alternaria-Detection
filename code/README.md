@@ -1,4 +1,4 @@
-# Apple Leaf Alternaria Detection: An AI-Based Approach Using Deep Learning and Explainable AI
+# AppleAlt: AI-Based Apple Leaf Alternaria Detection
 
 Automated data engineering, deep learning training, explainability (Grad-CAM), and diagnostic verification pipeline for the final-year B.Tech project in Computer Science & Engineering, Government College of Engineering & Technology (GCET), Safapora, Ganderbal, Kashmir (2022–2026).
 
@@ -42,8 +42,8 @@ All legacy checkpoints, split manifests, metrics, curves and evaluation reports 
 | `generate_colab_notebook.py`, `colab_setup_guide.md` | Google Colab GPU path for the heavy VGG models. | Legacy; references old manifests and counts. Regenerate after the new splits exist. |
 | `01_dataset_scanner.py`, `02_dataset_aggregator.py`, `catalog_diseases.py` | Provenance scripts for the original multi-source raw data collection (external `F:` drive). | Legacy; not used by the retraining pipeline. |
 | `sync_frontend_metrics.py` | Regenerates `frontend/src/data/projectData.ts` from `results/retrained_evaluation/comparison*.csv`, the per-model histories/configs and `split_summary.csv`, so the website never carries hand-typed metrics. Run after every evaluation. | Active. |
-| `test_model_selection.py` | API tests for the `model` form field of `/api/predict`: omitted = legacy 4-model vote (unchanged contract), `mobilenetv2`/`resnet18`/`vgg16`/`vgg19` = that model only, `all` = four independent results + agreement block, unknown = HTTP 400. Needs the backend running. | Active. |
-| `test_majority_voting.py`, `test_pipeline_verification.py`, `test_backend_routes.py` | Tests for the 4-model voting rule, the 3-stage pipeline and the API routes. | Active once retrained checkpoints exist. |
+| `test_model_selection.py` | API tests for the `model` form field of `/api/predict`: omitted = MobileNetV2 only, `mobilenetv2`/`resnet18`/`vgg16`/`vgg19` = that model only, `all` = four independent results reported separately (not combined), unknown = HTTP 400. Needs the backend running. | Active. |
+| `test_pipeline_verification.py`, `test_backend_routes.py` | Tests for the 3-stage pipeline (each model reported separately) and the API routes. | Active once retrained checkpoints exist. |
 | `class_mapping.json` | Shared class index mapping (`Healthy: 0`, `Alternaria: 1`). | Active. |
 | `leaf_prototype.pt` | 1,280-D apple-leaf manifold prototype for the Stage 1 gatekeeper. Not a disease classifier. | Required by the website. |
 | `test_desk.jpg`, `test_scenery.jpg` | Non-foliar samples for gatekeeper rejection tests. | Required by tests. |
@@ -80,8 +80,8 @@ python code/train_comparative_models.py --model all --dry-run
 python code/evaluate_all_models.py --dry-run
 
 # 2. Train comparative transfer learning models (writes models/retrained/<model>_best.pth):
-python code/train_comparative_models.py --model mobilenetv2 --epochs 3 --batch-size 32
-python code/train_comparative_models.py --model resnet18 --epochs 3 --batch-size 32
+python code/train_comparative_models.py --model mobilenetv2 --epochs 5 --batch-size 32
+python code/train_comparative_models.py --model resnet18 --epochs 5 --batch-size 32
 
 # 2b. ResNet18 / VGG16 / VGG19: see code/colab/README_COLAB.md (Colab T4), then copy the checkpoints back.
 

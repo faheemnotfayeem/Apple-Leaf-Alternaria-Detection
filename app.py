@@ -1,5 +1,5 @@
 """
-Apple Leaf Alternaria Detection: Production Diagnostic Web Application
+AppleAlt: Production Diagnostic Web Application
 ========================================================================
 
 Three-Stage Diagnostic Pipeline:
@@ -7,9 +7,11 @@ Three-Stage Diagnostic Pipeline:
            (Rejects non-foliar images: desks, rooms, scenery, furniture, screens)
   Stage 2: Hugging Face 36-Crop ConvNeXt-Small Species Classifier
            (hf-hub:ixrbhii/leaf-crop-detector-36-convnext)
-           (Verifies leaf belongs to 'Apple'; rejects other recognized plant species)
-  Stage 3: 4-Model Majority Voting Foliar Pathology Engine
-           (MobileNetV2, ResNet18, VGG16, VGG19 -> Healthy Leaf vs Alternaria Leaf Spot)
+           (Checks whether the leaf is 'Apple'; advisory only - it adds a notice and never
+            rejects, because lesions can confuse the species classifier)
+  Stage 3: Four independent disease classifiers
+           (MobileNetV2, ResNet18, VGG16, VGG19 -> Healthy Leaf vs Alternaria Leaf Spot;
+            each model's result is shown separately and never combined)
 """
 
 import os
@@ -19,7 +21,6 @@ from pathlib import Path
 
 import streamlit as st
 import torch
-import numpy as np
 from PIL import Image, ImageOps
 from torchvision import transforms
 
@@ -75,7 +76,7 @@ DISEASE_TRANSFORM = transforms.Compose([
 ])
 
 st.set_page_config(
-    page_title="Apple Leaf Alternaria Detection",
+    page_title="AppleAlt · AI-Based Apple Leaf Alternaria Detection",
     page_icon="🍃",
     layout="centered",
 )
@@ -272,13 +273,12 @@ def run_diagnostic_pipeline(uploaded_image, gatekeeper, crop_detector_bundle):
         crop_notice = f"Stage 2 crop classifier predicted {predicted_crop} ({crop_confidence * 100:.1f}%). Foliar necrosis, chlorotic halos, or target spots frequently alter species classification embeddings. Passing specimen directly to Apple disease classifier."
 
     # ---------------------------------------------------------
-    # STAGE 3: PATHOLOGY CLASSIFICATION (4-Model Majority Voting)
+    # STAGE 3: PATHOLOGY CLASSIFICATION (4 independent models, not combined)
     # ---------------------------------------------------------
     try:
         disease_input = DISEASE_TRANSFORM(image).unsqueeze(0).to(DEVICE)
 
-        votes = {}
-        probs_by_model = {}
+        model_results = []
         with torch.inference_mode():
             for m_disp_name in MODEL_FILES:
                 m_model = load_disease_model(m_disp_name)
@@ -287,46 +287,13 @@ def run_diagnostic_pipeline(uploaded_image, gatekeeper, crop_detector_bundle):
 
                 m_pred_idx = int(torch.argmax(m_probs).item())
                 m_pred_cls = CLASSES[m_pred_idx]
-                m_prob_h = float(m_probs[0].item())
-                m_prob_a = float(m_probs[1].item())
-
-                votes[m_disp_name] = m_pred_cls
-                probs_by_model[m_disp_name] = {
-                    "Healthy": m_prob_h,
-                    "Alternaria": m_prob_a,
-                }
-
-        # Multi-model majority voting logic
-        n_alternaria = sum(1 for res in votes.values() if res == "Alternaria")
-        n_healthy = 4 - n_alternaria
-
-        if n_healthy >= 3:
-            final_prediction = "Healthy"
-            final_label = "Healthy Leaf"
-            explanation = (
-                f"Consensus diagnosis: {n_healthy} of 4 transfer learning models voted Healthy Leaf."
-                if n_healthy < 4
-                else "Unanimous consensus across all 4 transfer learning models (4/4 voted Healthy Leaf)."
-            )
-        elif n_alternaria >= 3:
-            final_prediction = "Alternaria"
-            final_label = "Alternaria Leaf Spot"
-            explanation = (
-                f"Consensus diagnosis: {n_alternaria} of 4 transfer learning models voted Alternaria Leaf Spot."
-                if n_alternaria < 4
-                else "Unanimous consensus across all 4 transfer learning models (4/4 voted Alternaria Leaf Spot)."
-            )
-        else:
-            # 2–2 tie fallback: consider as Healthy Leaf
-            final_prediction = "Healthy"
-            final_label = "Healthy Leaf"
-            explanation = (
-                "2–2 tie between models resolved as Healthy Leaf (conservative rule: disease requires strict majority evidence)."
-            )
-
-        winning_coalition = [m for m, cls_name in votes.items() if cls_name == final_prediction]
-        winning_probs = [probs_by_model[m][final_prediction] for m in winning_coalition]
-        ensemble_confidence = float(np.mean(winning_probs))
+                model_results.append({
+                    "model_name": m_disp_name,
+                    "prediction": m_pred_cls,
+                    "label": "Healthy Leaf" if m_pred_cls == "Healthy" else "Alternaria Leaf Spot",
+                    "confidence": float(m_probs[m_pred_idx].item()),
+                    "probabilities": {"Healthy": float(m_probs[0].item()), "Alternaria": float(m_probs[1].item())},
+                })
 
     except Exception as exc:
         return {
@@ -344,10 +311,7 @@ def run_diagnostic_pipeline(uploaded_image, gatekeeper, crop_detector_bundle):
         "crop_confidence": crop_confidence,
         "apple_confidence": apple_confidence,
         "top3_crops": top3_crops,
-        "final_prediction": final_prediction,
-        "final_label": final_label,
-        "confidence": ensemble_confidence,
-        "explanation": explanation,
+        "model_results": model_results,
         "similarity": float(similarity),
         "details": gatekeeper_details,
     }
@@ -356,15 +320,15 @@ def run_diagnostic_pipeline(uploaded_image, gatekeeper, crop_detector_bundle):
 # 4. STREAMLIT USER INTERFACE
 # =========================================================
 
-st.title("Apple Leaf Alternaria Detection")
-st.markdown("Automated deep-learning pathology diagnostic system for foliar Alternaria detection.")
+st.title("AppleAlt")
+st.markdown("**AI-Based Apple Leaf Alternaria Detection**: automated deep-learning pathology diagnostic system for foliar Alternaria detection.")
 
 # Pipeline Architecture Callout
 st.info(
     "🛡️ **Cascaded 3-Stage Vision Pipeline Active:**  \n"
     "1. **Stage 1 (Gatekeeper)**: MobileNetV2 embedding distance filter (blocks desks, rooms, scenery, screens).  \n"
     "2. **Stage 2 (Species Validator)**: Hugging Face 36-Crop ConvNeXt (`Apple` threshold: **60.0%**).  \n"
-    "3. **Stage 3 (Pathology Consensus)**: 4-Model majority voting across MobileNetV2, ResNet18, VGG16, and VGG19."
+    "3. **Stage 3 (Disease Classification)**: MobileNetV2, ResNet18, VGG16 and VGG19 each analyse the leaf; every result is shown separately and never combined."
 )
 
 st.caption(f"**Hardware Device:** `{DEVICE.type.upper()}` | **Species Acceptance Threshold:** `{APPLE_CONFIDENCE_THRESHOLD * 100:.0f}% Apple Confidence`")
@@ -418,27 +382,24 @@ if uploaded_file is not None:
                     st.info(f"ℹ️ **Species Verification Telemetry:** {result.get('crop_notice')}")
 
                 st.markdown("---")
-                st.subheader("🔬 Stage 3: Conclusive Pathology Diagnosis")
+                st.subheader("🔬 Stage 3: Individual Model Results")
+                st.caption("Each model analysed the photograph independently. The results are listed separately.")
 
-                prediction = result["final_prediction"]
-                final_label = result["final_label"]
-                confidence = result["confidence"]
-                treatment = TREATMENT_GUIDE.get(prediction, {})
+                for r in result["model_results"]:
+                    icon = "🟢" if r["prediction"] == "Healthy" else "🔴"
+                    st.write(f"{icon} **{r['model_name']}**: {r['label']} ({r['confidence'] * 100:.2f}% model confidence)")
 
-                if prediction == "Healthy":
-                    st.success(f"### 🎉 Diagnosis: {final_label.upper()}")
-                else:
-                    st.error(f"### ⚠️ Diagnosis: {final_label.upper()}")
-
-                st.write(f"**Voting Outcome:** {result['explanation']}")
-                st.metric("Consensus Diagnostic Confidence", f"{confidence * 100:.2f}%")
-
-                # Agronomic Treatment Recommendations
+                # Guidance follows a class only when every model reports it
+                predictions = {r["prediction"] for r in result["model_results"]}
                 st.markdown("---")
                 st.subheader("🌾 Agronomic Management Protocol")
-                st.write(f"**Pathogen Status:** {treatment.get('pathogen', 'N/A')}")
-                st.write(f"**Key Diagnostic Symptoms:** {treatment.get('symptoms', 'N/A')}")
-                st.info(f"**Recommended Action:** {treatment.get('action', 'N/A')}")
+                if len(predictions) == 1:
+                    treatment = TREATMENT_GUIDE.get(predictions.pop(), {})
+                    st.write(f"**Pathogen Status:** {treatment.get('pathogen', 'N/A')}")
+                    st.write(f"**Key Diagnostic Symptoms:** {treatment.get('symptoms', 'N/A')}")
+                    st.info(f"**Recommended Action:** {treatment.get('action', 'N/A')}")
+                else:
+                    st.warning("The models gave different results for this photograph. Retake the photo in even daylight, check several leaves, and consult an agricultural expert.")
 
                 with st.expander("Technical Pipeline Diagnostics"):
                     st.write(f"**Leaf Manifold Similarity:** `{result['similarity']:.4f}`")

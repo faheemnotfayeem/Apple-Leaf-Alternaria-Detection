@@ -1,7 +1,7 @@
 """
 Dataset Audit, Duplicate Grouping & Manifest Builder (read-only on DATASET/)
 ===========================================================================
-Project: Apple Leaf Alternaria Detection: An AI-Based Approach Using Deep Learning and Explainable AI
+Project: AppleAlt: AI-Based Apple Leaf Alternaria Detection
 
 Scans the two source folders
 

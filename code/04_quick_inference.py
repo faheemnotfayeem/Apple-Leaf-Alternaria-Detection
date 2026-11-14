@@ -1,7 +1,7 @@
 """
-AI-Driven Apple Leaf Alternaria Detection Diagnostic Engine
+AppleAlt Diagnostic Engine (AI-Based Apple Leaf Alternaria Detection)
 ============================================================
-Project: Apple Leaf Alternaria Detection: An AI-Based Approach Using Deep Learning and Explainable AI
+Project: AppleAlt: AI-Based Apple Leaf Alternaria Detection
 Target Classes:
   0: Healthy Apple Foliage
   1: Alternaria Leaf Spot (Pathogen: Alternaria alternata)
@@ -245,7 +245,7 @@ def evaluate_leaf_authenticity(image_input):
 
 def run_diagnostic_inference(image_path, generate_cam=False):
     print("\n" + "=" * 76)
-    print("   AI-DRIVEN APPLE LEAF ALTERNARIA DETECTION: DIAGNOSTIC ENGINE   ")
+    print("                       APPLEALT: DIAGNOSTIC ENGINE                       ")
     print("=" * 76)
     print(f"Target Image: {image_path}")
 
@@ -366,7 +366,7 @@ def run_diagnostic_inference(image_path, generate_cam=False):
     print("=" * 76 + "\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Apple Leaf Alternaria Detection: 2-Stage Diagnostic Engine.")
+    parser = argparse.ArgumentParser(description="AppleAlt: 2-Stage Diagnostic Engine.")
     parser.add_argument("--image", type=str, default=None, help="Path to input test image.")
     parser.add_argument("--cam", action="store_true", help="Generate and save Grad-CAM attention heatmap overlay.")
     args = parser.parse_args()

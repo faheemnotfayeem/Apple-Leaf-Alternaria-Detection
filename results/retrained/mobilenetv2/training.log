@@ -1,0 +1,16 @@
+[2026-10-16 23:20:32] [INFO] === Starting Training Pipeline: MOBILENETV2 ===
+[2026-10-16 23:20:32] [INFO] Execution Device: cpu
+[2026-10-16 23:20:32] [INFO] Loaded Train Manifest: 15111 samples (Healthy: 8348, Alternaria: 6763)
+[2026-10-16 23:20:32] [INFO] Loaded Val Manifest:   3239 samples (Healthy: 1789, Alternaria: 1450)
+[2026-10-16 23:20:32] [INFO] Class imbalance handling formula: N / (2 * N_c)
+[2026-10-16 23:20:32] [INFO] Class Weights [Healthy, Alternaria]: [0.905067, 1.117182]
+[2026-10-16 23:20:32] [INFO] Model Architecture: mobilenetv2 | Total Params: 2,388,098 | Trainable Params: 1,690,306
+[2026-10-16 23:25:44] [INFO] Epoch 01/05 | Train Loss: 0.1152 Acc: 96.35% | Val Loss: 0.0498 Acc: 98.39% | 312.2s | [BEST SAVED]
+[2026-10-16 23:30:56] [INFO] Epoch 02/05 | Train Loss: 0.0236 Acc: 99.16% | Val Loss: 0.0346 Acc: 98.86% | 311.4s | [BEST SAVED]
+[2026-10-16 23:36:09] [INFO] Epoch 03/05 | Train Loss: 0.0144 Acc: 99.57% | Val Loss: 0.0564 Acc: 97.62% | 313.4s
+[2026-10-16 23:41:19] [INFO] Epoch 04/05 | Train Loss: 0.0113 Acc: 99.61% | Val Loss: 0.0660 Acc: 97.59% | 310.4s
+[2026-10-16 23:46:08] [INFO] Epoch 05/05 | Train Loss: 0.0132 Acc: 99.60% | Val Loss: 0.0078 Acc: 99.75% | 288.2s | [BEST SAVED]
+[2026-10-16 23:46:08] [INFO] Completed training in 25.60 minutes. Best Val Acc: 99.75%
+[2026-10-16 23:46:08] [INFO] Saved history CSV to: C:\Users\haris\OneDrive\Desktop\Apple Leaf Alternaria Detection\results\retrained\mobilenetv2\history.csv
+[2026-10-16 23:46:08] [INFO] Verifying checkpoint loading and output shape...
+[2026-10-16 23:46:08] [INFO] Checkpoint verification passed! Output shape: [2, 2]

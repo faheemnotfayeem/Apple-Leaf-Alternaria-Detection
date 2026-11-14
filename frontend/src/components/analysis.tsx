@@ -79,9 +79,9 @@ export function useElapsed(running: boolean, runId: number) {
 export type RequestPhase = "idle" | "prepared" | "awaiting" | "receiving" | "done" | "error";
 
 const PHASES: { id: Exclude<RequestPhase, "idle" | "done" | "error">; label: string; detail: string }[] = [
-  { id: "prepared", label: "Preparing the photograph", detail: "file packaged for the server" },
-  { id: "awaiting", label: "Checking and analysing", detail: "waiting for the server: image checks, then the disease model" },
-  { id: "receiving", label: "Reading the result", detail: "response received" },
+  { id: "prepared", label: "Preparing the image", detail: "Encoding the photograph for analysis" },
+  { id: "awaiting", label: "Analysing the leaf", detail: "Classifying healthy foliage vs Alternaria leaf spot" },
+  { id: "receiving", label: "Compiling the result", detail: "Prediction and confidence received" },
 ];
 const ORDER: RequestPhase[] = ["prepared", "awaiting", "receiving", "done"];
 
@@ -119,13 +119,8 @@ export function StatusLedger({ phase, modelNames, elapsedMs }: { phase: RequestP
             {n}
           </span>
         ))}
-        <span className="ml-auto text-xs text-ink-3 tabular">elapsed {(elapsedMs / 1000).toFixed(1)} s</span>
+        <span className="ml-auto text-xs text-ink-3 tabular">{(elapsedMs / 1000).toFixed(1)} s</span>
       </div>
-      <p className="text-xs text-ink-4 leading-snug">
-        {modelNames.length > 1
-          ? "All four models run in one request and are reported together when it returns."
-          : "These steps describe the request to the server, not what happens inside the model."}
-      </p>
     </div>
   );
 }
@@ -154,10 +149,8 @@ export function ScanViewport({ src, alt, active, compact = false }: { src: strin
         </div>
       )}
 
-      {/* honesty label */}
-      <div className="absolute left-2.5 bottom-2.5 right-2.5 flex items-center justify-between pointer-events-none text-[11px] font-medium">
-        <span className="text-white bg-ink/60 px-2 py-0.5 rounded-sm">{active ? "Scanning" : "Specimen"}</span>
-        <span className="text-white/90 bg-ink/60 px-2 py-0.5 rounded-sm">Decorative animation · no spots are being marked</span>
+      <div className="absolute left-2.5 bottom-2.5 pointer-events-none text-[11px] font-medium">
+        <span className="text-white bg-ink/60 px-2 py-0.5 rounded-sm">{active ? "Analysing" : "Specimen"}</span>
       </div>
     </div>
   );
@@ -175,7 +168,8 @@ export function ConfidenceValue({ value, decimals = 1, delay = 0, className }: {
   );
 }
 
-export function ProbabilityBar({ healthy, alternaria, delay = 0 }: { healthy: number; alternaria: number; delay?: number }) {
+/** Single-class meter (0..1) that grows to its real value. */
+export function MeterBar({ value, tone, delay = 0 }: { value: number; tone: "forest" | "rust"; delay?: number }) {
   const reduced = useReducedMotion();
   const [grown, setGrown] = useState(false);
   useEffect(() => {
@@ -185,9 +179,8 @@ export function ProbabilityBar({ healthy, alternaria, delay = 0 }: { healthy: nu
   }, [reduced, delay]);
   const show = reduced || grown;
   return (
-    <div className="h-1 w-full rounded-sm overflow-hidden bg-paper-3 flex" title="Healthy vs Alternaria probability" aria-hidden>
-      <div className="h-full bg-forest-600 bar-grow" style={{ width: show ? `${healthy * 100}%` : "0%" }} />
-      <div className="h-full bg-rust-600 bar-grow" style={{ width: show ? `${alternaria * 100}%` : "0%" }} />
+    <div className="h-1.5 w-full rounded-full overflow-hidden bg-paper-3" aria-hidden>
+      <div className={cx("h-full rounded-full bar-grow", tone === "forest" ? "bg-forest-600" : "bg-rust-600")} style={{ width: show ? `${value * 100}%` : "0%" }} />
     </div>
   );
 }

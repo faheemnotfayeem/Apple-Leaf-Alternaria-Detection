@@ -1,5 +1,5 @@
 """
-Apple Leaf Alternaria Detection: Comparative Transfer-Learning Framework
+AppleAlt: Comparative Transfer-Learning Framework
 ========================================================================
 Supports 4 architectures:
   1. MobileNetV2
@@ -187,7 +187,7 @@ def build_comparative_model(model_name: str, num_classes: int = 2, pretrained: b
     elif model_name == "vgg16":
         weights = models.VGG16_Weights.DEFAULT if pretrained else None
         model = models.vgg16(weights=weights)
-        # Freeze early conv blocks, train last conv block and classifier
+        # Freeze conv1_1..conv5_2; train the last conv layer (conv5_3) and the whole classifier
         for p in model.features[:-4].parameters():
             p.requires_grad = False
         in_f = model.classifier[6].in_features
@@ -201,7 +201,7 @@ def build_comparative_model(model_name: str, num_classes: int = 2, pretrained: b
     elif model_name == "vgg19":
         weights = models.VGG19_Weights.DEFAULT if pretrained else None
         model = models.vgg19(weights=weights)
-        # Freeze early conv blocks, train last conv block and classifier
+        # Freeze conv1_1..conv5_3; train the last conv layer (conv5_4) and the whole classifier
         for p in model.features[:-4].parameters():
             p.requires_grad = False
         in_f = model.classifier[6].in_features
@@ -569,7 +569,7 @@ def dry_run(models_to_check, batch_size=8):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Apple Leaf Alternaria Detection Comparative Training")
+    parser = argparse.ArgumentParser(description="AppleAlt Comparative Training")
     parser.add_argument("--model", type=str, default="mobilenetv2", choices=["mobilenetv2", "resnet18", "vgg16", "vgg19", "all"],
                         help="Architecture to train")
     parser.add_argument("--epochs", type=int, default=5, help="Number of epochs")

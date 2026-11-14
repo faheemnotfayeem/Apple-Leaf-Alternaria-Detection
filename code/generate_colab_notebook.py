@@ -15,7 +15,7 @@ cells = [
         "cell_type": "markdown",
         "metadata": {},
         "source": [
-            "# Apple Leaf Alternaria Detection: Comparative Transfer-Learning Benchmark\n",
+            "# AppleAlt: Comparative Transfer-Learning Benchmark\n",
             "### B.Tech Final Year Computer Science & Engineering Project (2022–2026)\n",
             "**Institution**: Government College of Engineering and Technology (GCET), Safapora, Ganderbal, Kashmir  \n",
             "**Comparative Architectures**: MobileNetV2, ResNet18, VGG16, VGG19  \n",

@@ -1,29 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, ChangeEvent, DragEvent, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, ChangeEvent, DragEvent, KeyboardEvent, ReactNode } from "react";
 import Image from "next/image";
-import {
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  ShieldAlert,
-  ShieldCheck,
-  Cpu,
-  Info,
-  Loader2,
-  ArrowRight,
-  Layers,
-  Crosshair,
-} from "lucide-react";
+import { RefreshCw, AlertTriangle, ImageOff, Cpu, Info, Loader2, ArrowRight, Layers, Crosshair } from "lucide-react";
 import { COMPARISON_METRICS, REAL_SUBSET_METRICS } from "@/data/projectData";
+import { INTERPRETATION } from "@/data/interpretation";
 import { Eyebrow, Badge, SpecimenLabel, Dot, cx } from "@/components/ui";
-import { ScanViewport, StatusLedger, ConfidenceValue, ProbabilityBar, useElapsed, useReducedMotion, type RequestPhase } from "@/components/analysis";
-
-interface TopCrop {
-  crop: string;
-  confidence: number;
-}
+import { ScanViewport, StatusLedger, ConfidenceValue, MeterBar, useElapsed, useReducedMotion, type RequestPhase } from "@/components/analysis";
 
 interface ModelResult {
   model_key: string;
@@ -35,47 +18,20 @@ interface ModelResult {
   inference_ms: number;
 }
 
-interface Agreement {
-  unanimous: boolean;
-  votes: { Healthy: number; Alternaria: number };
-  majority_prediction: "Healthy" | "Alternaria" | null;
-  majority_label: string;
-  disagreeing_models: string[];
-  note: string;
-}
-
 interface DiagnosisResult {
   status: "success" | "rejected_non_leaf" | "rejected_non_apple" | "rejected_low_confidence" | "error";
-  mode?: "ensemble" | "single" | "all";
+  mode?: "single" | "all";
   stage?: string;
-  similarity?: number;
-  gatekeeper_threshold?: number;
-  crop_status?: "confirmed" | "likely_apple" | "ambiguous_foliage";
-  crop_notice?: string;
-  predicted_crop?: string;
-  crop_confidence?: number;
-  apple_confidence?: number;
-  top3_crops?: TopCrop[];
   final_prediction?: "Healthy" | "Alternaria";
   final_label?: "Healthy Leaf" | "Alternaria Leaf Spot";
   confidence?: number;
-  confidence_type?: "model_confidence";
-  confidence_note?: string;
-  explanation?: string;
   model_key?: string;
   model_name?: string;
   inference_ms?: number;
   probabilities?: { Healthy: number; Alternaria: number };
   model_results?: ModelResult[];
-  agreement?: Agreement;
-  treatment_guidance?: {
-    title: string;
-    pathogen: string;
-    symptoms: string;
-    recommended_action: string;
-  } | null;
+  results_note?: string;
   message?: string;
-  limitation_note?: string;
 }
 
 type ModelOptionId = "mobilenetv2" | "resnet18" | "vgg16" | "vgg19" | "all";
@@ -89,14 +45,15 @@ interface ModelOption {
 
 const sizeLabel = (mb: number) => (mb >= 1000 ? `${(mb / 1000).toFixed(2)} GB` : `${Math.round(mb)} MB`);
 const MODEL_TRAITS: Record<string, string> = {
-  mobilenetv2: "Small and fast; recommended.",
-  resnet18: "Best on the full test set.",
-  vgg16: "Large file, slower to run.",
-  vgg19: "Largest file, slowest to run.",
+  mobilenetv2: "Compact and fastest; recommended.",
+  resnet18: "Highest accuracy on the full test set.",
+  vgg16: "Large network, slower inference.",
+  vgg19: "Largest network, slowest inference.",
 };
+const realMetric = (id: string) => REAL_SUBSET_METRICS.find((m) => m.id === id);
 const realAccuracy = (id: string) => {
-  const r = REAL_SUBSET_METRICS.find((m) => m.id === id);
-  return r ? `${(r.testAccuracy * 100).toFixed(2)}% correct on original test photographs.` : "";
+  const r = realMetric(id);
+  return r ? `${(r.testAccuracy * 100).toFixed(2)}% accuracy on original test photographs.` : "";
 };
 const MODEL_OPTIONS: ModelOption[] = [
   ...COMPARISON_METRICS.map((m) => ({
@@ -122,6 +79,146 @@ const SAMPLES = [
   { file: "alternaria-lab.jpg", label: "Alternaria", capture: "bench", kind: "alternaria" as const },
   { file: "healthy-lab.jpg", label: "Healthy", capture: "bench", kind: "healthy" as const },
 ];
+
+/* "compare" is the All Models header: four separate results, never merged into one verdict. */
+type Verdict = "healthy" | "alternaria" | "split" | "compare";
+type GuidanceKey = Exclude<Verdict, "compare">;
+
+const VERDICT_TONE: Record<Verdict, { band: string; border: string; text: string }> = {
+  healthy: { band: "bg-forest-50/70", border: "border-forest-100", text: "text-forest-800" },
+  alternaria: { band: "bg-rust-50/70", border: "border-rust-100", text: "text-rust-700" },
+  split: { band: "bg-ochre-50/70", border: "border-ochre-100", text: "text-ochre-700" },
+  compare: { band: "bg-paper/60", border: "border-line", text: "text-ink" },
+};
+
+const verdictDetail = (v: Verdict) =>
+  v === "healthy"
+    ? "No signs of Alternaria leaf spot were detected in this photograph."
+    : v === "alternaria"
+      ? "Lesion patterns consistent with Alternaria leaf spot, a fungal disease caused by Alternaria alternata."
+      : v === "compare"
+        ? "Each model analysed this photograph independently. Their results are listed below."
+        : "The models gave different results for this photograph. A clearer image or expert inspection is advised.";
+
+/** Headline of the screening report: specimen thumbnail, verdict, and a key figure on the right. */
+function VerdictCard({
+  verdict,
+  kicker,
+  label,
+  preview,
+  aside,
+  children,
+}: {
+  verdict: Verdict;
+  kicker: string;
+  label: string;
+  preview: string | null;
+  aside: ReactNode;
+  children: ReactNode;
+}) {
+  const tone = VERDICT_TONE[verdict];
+  return (
+    <div className={cx("rounded-lg border overflow-hidden bg-white shadow-hair reveal", tone.border)} style={{ ["--delay" as string]: "0ms" }}>
+      <div className={cx("flex flex-wrap sm:flex-nowrap items-start gap-4 p-5 sm:p-6", tone.band)}>
+        {preview && (
+          <div className="relative w-16 h-16 sm:w-[84px] sm:h-[84px] shrink-0 rounded-md overflow-hidden border border-white shadow-hair bg-paper-2">
+            <Image src={preview} alt="Analysed specimen" fill className="object-cover" unoptimized />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-medium text-ink-3">{kicker}</div>
+          <h3 className={cx("font-display text-[1.75rem] sm:text-[2.1rem] leading-tight mt-1", tone.text)}>{label}</h3>
+          <p className="text-[13px] text-ink-2 mt-1.5 leading-snug max-w-md">{verdictDetail(verdict)}</p>
+        </div>
+        <div className="basis-full sm:basis-auto shrink-0 flex sm:block items-baseline justify-between gap-3 pt-3 sm:pt-0 border-t sm:border-0 border-ink/10 sm:text-right">
+          {aside}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ClassRow({ name, value, tone, emphasis, delay }: { name: string; value: number; tone: "forest" | "rust"; emphasis: boolean; delay: number }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[10rem_1fr_4rem] items-center gap-x-4 gap-y-1.5 text-[13px]">
+      <span className={emphasis ? "text-ink font-medium" : "text-ink-3"}>{name}</span>
+      <span className="col-span-2 sm:col-span-1 order-last sm:order-none">
+        <MeterBar value={value} tone={tone} delay={delay} />
+      </span>
+      <span className={cx("text-right tabular", emphasis ? "text-ink font-medium" : "text-ink-3")}>{(value * 100).toFixed(1)}%</span>
+    </div>
+  );
+}
+
+/** Compact reference notes for the outcome: key signs, context chips and a strip of next steps. */
+function InterpretationPanel({ verdict, delay }: { verdict: GuidanceKey; delay: number }) {
+  const info = INTERPRETATION[verdict];
+  const tone = VERDICT_TONE[verdict];
+  return (
+    <div className="space-y-5 reveal" style={{ ["--delay" as string]: `${delay}ms` }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-md border border-line bg-white p-4">
+          <div className="text-xs font-medium text-ink-3 mb-3">{info.signsTitle}</div>
+          <ul className="space-y-2.5">
+            {info.signs.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-2.5 text-[13px] text-ink">
+                <span className={cx("w-6 h-6 rounded-full flex items-center justify-center shrink-0", tone.band)}>
+                  <Icon className={cx("w-3.5 h-3.5", tone.text)} strokeWidth={1.75} />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-md border border-line bg-white p-4">
+          <div className="text-xs font-medium text-ink-3 mb-3">{info.factorsTitle}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {info.factors.map((f) => (
+              <span key={f} className="text-xs text-ink-2 bg-paper-2 border border-line rounded-full px-2.5 py-1">{f}</span>
+            ))}
+          </div>
+          {info.lookalikes && (
+            <>
+              <div className="text-xs font-medium text-ink-3 mt-4 mb-2">Can be confused with</div>
+              <div className="flex flex-wrap gap-1.5">
+                {info.lookalikes.map((l) => (
+                  <span key={l} className="text-xs text-ink-2 border border-dashed border-line-2 rounded-full px-2.5 py-1">{l}</span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-lg text-ink">Next steps</h3>
+        <ol className={cx("grid grid-cols-2 gap-3", info.steps.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-4")}>
+          {info.steps.map(({ icon: Icon, title, text }, i) => (
+            <li key={title} className="rounded-md border border-line bg-white p-3.5">
+              <div className="flex items-center justify-between">
+                <span className={cx("w-8 h-8 rounded-full flex items-center justify-center", tone.band)}>
+                  <Icon className={cx("w-4 h-4", tone.text)} strokeWidth={1.75} />
+                </span>
+                <span className="text-xs text-ink-4 tabular">0{i + 1}</span>
+              </div>
+              <div className="mt-3 text-sm font-medium text-ink">{title}</div>
+              <p className="text-xs text-ink-3 leading-snug mt-1">{text}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-ink-3">{info.footnote}</p>
+      </div>
+    </div>
+  );
+}
+
+// Test accuracy / size get their own columns where the panel is wide (sm–lg single-column layout, xl+);
+// on phones and in the narrow lg two-column band they fold into a line under the model name.
+const MODEL_GRID =
+  "grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)_4.5rem_4rem_4rem_4.5rem] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.1fr)_minmax(0,1fr)_4.5rem_4.5rem] xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)_4.5rem_4rem_4rem_4.5rem] items-center gap-x-4 gap-y-1";
+const WIDE_ONLY = "hidden sm:block lg:hidden xl:block";
+const NARROW_ONLY = "block sm:hidden lg:block xl:hidden";
 
 export default function DetectionPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -338,8 +435,13 @@ export default function DetectionPage() {
   };
 
   const isAllMode = result?.mode === "all";
-  const confidenceLabel = result?.mode === "single" ? "Confidence score" : "Combined confidence";
   const isHealthy = result?.final_prediction === "Healthy";
+  const isRejected = result?.status === "rejected_non_leaf" || result?.status === "rejected_non_apple" || result?.status === "rejected_low_confidence";
+  // All Models: guidance follows the class only when every model reports it; otherwise the "models differ" notes.
+  const allPredictions = new Set(result?.model_results?.map((r) => r.prediction));
+  const allGuidance: GuidanceKey =
+    allPredictions.size !== 1 ? "split" : allPredictions.has("Healthy") ? "healthy" : "alternaria";
+  const modelCount = result?.model_results?.length ?? 4;
 
   return (
     <div className="relative">
@@ -347,21 +449,21 @@ export default function DetectionPage() {
         {/* Header */}
         <header className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end border-b border-line pb-7">
           <div className="lg:col-span-8 space-y-4">
-            <Eyebrow>Leaf check · three steps</Eyebrow>
+            <Eyebrow>Screening workspace</Eyebrow>
             <h1 className="text-[2.1rem] sm:text-5xl leading-[1.02] text-ink font-normal">Disease Detection</h1>
             <p className="text-base text-ink-2 leading-relaxed max-w-2xl">
-              Upload a photograph of an apple leaf. The application checks the image first, then the model you choose reports whether the
-              leaf looks healthy or shows Alternaria leaf spot, with a confidence score. The result is a screening aid, not a confirmed
+              Upload a photograph of an apple leaf and select a model. The analysis reports whether the leaf appears healthy or shows
+              Alternaria leaf spot, together with the model&apos;s confidence. Results support early screening and do not replace an expert
               diagnosis.
             </p>
           </div>
           <div className="lg:col-span-4 lg:justify-self-end">
             <SpecimenLabel className="lg:justify-end">
               <span className="inline-flex items-center gap-1.5">
-                <Dot tone={isLoading ? "ochre" : "forest"} /> Backend: FastAPI · CPU
+                <Dot tone={isLoading ? "ochre" : "forest"} /> Inference on CPU
               </span>
               <span>·</span>
-              <span>Mode: {selectedModel === "all" ? "All four models" : "Single model"}</span>
+              <span>{selectedModel === "all" ? "All four models" : selectedOption.name}</span>
             </SpecimenLabel>
           </div>
         </header>
@@ -422,7 +524,7 @@ export default function DetectionPage() {
                       </SpecimenLabel>
                       <SpecimenLabel>
                         {isLoading ? (
-                          <span className="inline-flex items-center gap-1.5 text-forest-800"><Dot tone="forest" /> being analysed</span>
+                          <span className="inline-flex items-center gap-1.5 text-forest-800"><Dot tone="forest" /> Analysing</span>
                         ) : (
                           <span>{imageFile ? `${(imageFile.size / 1024).toFixed(0)} KB` : ""}</span>
                         )}
@@ -434,7 +536,7 @@ export default function DetectionPage() {
                 {/* Sample specimens: real held-out photographs, loaded through the same upload path */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-ink-3">No photograph at hand? Try one of these test photographs.</div>
+                    <div className="text-xs text-ink-3">Or start from a sample held-out test photograph.</div>
                     {sampleLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-forest-600" aria-label="Loading sample" />}
                   </div>
                   <ul className="grid grid-cols-4 gap-2">
@@ -525,7 +627,7 @@ export default function DetectionPage() {
               </div>
               {selectedModel === "all" && (
                 <p className="fade mx-4 mb-4 text-xs text-ochre-700 bg-ochre-50 border border-ochre-100 rounded-sm px-2.5 py-1.5 leading-snug">
-                  All Models loads about 3 GB of VGG weights the first time it runs; the first analysis can take 10 to 30 seconds. Later analyses are fast.
+                  The first comparison run loads the larger VGG networks and can take 10 to 30 seconds. Later runs are fast.
                 </p>
               )}
             </section>
@@ -545,11 +647,11 @@ export default function DetectionPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Checking with {selectedOption.name}…
+                  Analysing with {selectedOption.name}…
                 </>
               ) : (
                 <>
-                  Check leaf with {selectedOption.name}
+                  Analyse with {selectedOption.name}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -561,16 +663,18 @@ export default function DetectionPage() {
           <div className="lg:col-span-7 lg:sticky lg:top-24">
             <section ref={readoutRef} className="glass border rounded-xl shadow-lift min-h-[520px] flex flex-col scroll-mt-24" aria-busy={isLoading}>
               <div className="flex items-center justify-between px-5 sm:px-6 pt-4 pb-3 border-b border-line">
-                <h2 className="text-lg text-ink flex items-baseline gap-2"><span className="text-sm text-ink-4 tabular">03</span>Result</h2>
+                <h2 className="text-lg text-ink flex items-baseline gap-2"><span className="text-sm text-ink-4 tabular">03</span>Screening report</h2>
                 <SpecimenLabel>
                   {isLoading ? (
-                    <span className="inline-flex items-center gap-1.5 text-forest-800"><span className="w-1.5 h-1.5 rounded-full bg-forest-600 pulse-soft" /> scanning · {(elapsedMs / 1000).toFixed(1)} s</span>
-                  ) : result ? (
-                    <span className="inline-flex items-center gap-1.5"><Dot tone={result.status === "success" ? "forest" : "ochre"} /> {result.status.replace(/_/g, " ")} · {(elapsedMs / 1000).toFixed(1)} s</span>
-                  ) : apiError ? (
-                    <span className="inline-flex items-center gap-1.5"><Dot tone="rust" /> error</span>
+                    <span className="inline-flex items-center gap-1.5 text-forest-800"><span className="w-1.5 h-1.5 rounded-full bg-forest-600 pulse-soft" /> Analysing · {(elapsedMs / 1000).toFixed(1)} s</span>
+                  ) : result?.status === "success" ? (
+                    <span className="inline-flex items-center gap-1.5"><Dot tone="forest" /> Complete · {(elapsedMs / 1000).toFixed(1)} s</span>
+                  ) : isRejected ? (
+                    <span className="inline-flex items-center gap-1.5"><Dot tone="ochre" /> Not analysed</span>
+                  ) : apiError || result?.status === "error" ? (
+                    <span className="inline-flex items-center gap-1.5"><Dot tone="rust" /> Error</span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5"><Dot tone="sage" /> idle</span>
+                    <span className="inline-flex items-center gap-1.5"><Dot tone="sage" /> Ready</span>
                   )}
                 </SpecimenLabel>
               </div>
@@ -581,7 +685,7 @@ export default function DetectionPage() {
                   <div className="bg-rust-50 border border-rust-100 rounded-md p-4 text-xs text-rust-700 flex items-start gap-2.5 reveal" role="alert">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                     <div className="space-y-2 flex-1">
-                      <div className="font-medium">Analysis error</div>
+                      <div className="font-medium">Analysis could not be completed</div>
                       <div className="leading-relaxed">{apiError}</div>
                       <div className="flex flex-wrap gap-2">
                         {imageFile && (
@@ -612,11 +716,11 @@ export default function DetectionPage() {
                       <div className="absolute top-1/2 left-0 right-0 h-px bg-line-2" />
                       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-ink-3" />
                     </div>
-                    <h3 className="text-xl text-ink">{imagePreview ? "Photograph ready" : "Waiting for a photograph"}</h3>
+                    <h3 className="text-xl text-ink">{imagePreview ? "Ready to analyse" : "Awaiting a leaf photograph"}</h3>
                     <p className="text-[13px] text-ink-3 max-w-sm mt-2 leading-relaxed">
                       {imagePreview
-                        ? `Choose a model, or All Models, then press Check leaf. Currently selected: ${selectedOption.name}.`
-                        : "Upload or pick a leaf photograph, choose a model, and press Check leaf. The image is checked first; the result appears here."}
+                        ? `Run the analysis with ${selectedOption.name} to generate the screening report.`
+                        : "Upload or select a leaf photograph, choose a model and run the analysis. The screening report will appear here."}
                     </p>
                   </div>
                 )}
@@ -628,58 +732,36 @@ export default function DetectionPage() {
                       <ScanViewport src={imagePreview} alt="Uploaded leaf under analysis" active />
                     </div>
                     <div className="md:col-span-2 flex flex-col">
-                      <h3 className="text-lg text-ink mb-3">{selectedModel === "all" ? "Checking with all four models" : `Checking with ${selectedOption.name}`}</h3>
+                      <h3 className="text-lg text-ink mb-3">{selectedModel === "all" ? "Running all four models" : `Running ${selectedOption.name}`}</h3>
                       <StatusLedger phase={phase} modelNames={runningModelNames} elapsedMs={elapsedMs} />
                     </div>
                   </div>
                 )}
 
                 {result && (
-                  <div key={`${result.mode ?? result.status}-${resultSeq}`} className="space-y-5">
-                    {/* STAGE 1 REJECTION */}
-                    {result.status === "rejected_non_leaf" && (
-                      <div className="border border-ochre-100 bg-ochre-50/60 rounded-md p-6 space-y-4 reveal">
-                        <div className="flex items-center gap-2 text-ochre-700 font-medium text-sm">
-                          <ShieldAlert className="w-5 h-5" />
-                          Step 1 · This does not look like a leaf
-                        </div>
-                        <p className="text-sm text-ink-2 leading-relaxed">{result.message}</p>
-                        <dl className="grid grid-cols-2 gap-3 text-xs font-mono tabular">
-                          <div className="bg-white border border-line rounded-sm p-3">
-                            <dt className="text-ink-3">Similarity to apple leaves</dt>
-                            <dd className="text-base text-ink mt-1">{result.similarity?.toFixed(4)}</dd>
+                  <div key={`${result.mode ?? result.status}-${resultSeq}`} className="flex-1 flex flex-col space-y-5">
+                    {/* NOT SUITABLE FOR ANALYSIS */}
+                    {isRejected && (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center rounded-lg border border-line bg-paper/70 px-6 py-10 reveal">
+                        {imagePreview ? (
+                          <div className="relative w-20 h-20 rounded-md overflow-hidden border border-line bg-paper-2 mb-5 opacity-80">
+                            <Image src={imagePreview} alt="Submitted photograph" fill className="object-cover grayscale" unoptimized />
                           </div>
-                          <div className="bg-white border border-line rounded-sm p-3">
-                            <dt className="text-ink-3">Needed to pass</dt>
-                            <dd className="text-base text-ink mt-1">&ge; 0.3300</dd>
-                          </div>
-                        </dl>
-                        <button type="button" onClick={handleReset} className="press text-xs font-medium text-forest-800 hover:text-forest-900 inline-flex items-center gap-1 cursor-pointer">
-                          Try another photograph <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* STAGE 2 REJECTION */}
-                    {result.status === "rejected_non_apple" && (
-                      <div className="border border-ochre-100 bg-ochre-50/60 rounded-md p-6 space-y-4 reveal">
-                        <div className="flex items-center gap-2 text-ochre-700 font-medium text-sm">
-                          <XCircle className="w-5 h-5" />
-                          Step 2 · This does not look like an apple leaf
-                        </div>
-                        <p className="text-sm text-ink-2 leading-relaxed">{result.message}</p>
-                        <dl className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="bg-white border border-line rounded-sm p-3">
-                            <dt className="text-ink-3">Looks most like</dt>
-                            <dd className="text-sm font-medium text-ink mt-1">{result.predicted_crop}</dd>
-                          </div>
-                          <div className="bg-white border border-line rounded-sm p-3">
-                            <dt className="text-ink-3">Classifier confidence</dt>
-                            <dd className="text-sm font-medium text-ink mt-1 font-mono tabular">{((result.crop_confidence ?? 0) * 100).toFixed(1)}%</dd>
-                          </div>
-                        </dl>
-                        <button type="button" onClick={handleReset} className="press text-xs font-medium text-forest-800 hover:text-forest-900 inline-flex items-center gap-1 cursor-pointer">
-                          Try another photograph <ArrowRight className="w-3.5 h-3.5" />
+                        ) : (
+                          <ImageOff className="w-7 h-7 text-ink-3 mb-4" strokeWidth={1.5} />
+                        )}
+                        <h3 className="text-xl text-ink">Image not suitable for analysis</h3>
+                        <p className="text-[13px] text-ink-2 max-w-md mt-2 leading-relaxed">
+                          This photograph does not clearly show an apple leaf, so no assessment was made. For a reliable result, please provide a
+                          close-up of a single apple leaf.
+                        </p>
+                        <ul className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-ink-3 w-full max-w-lg">
+                          {["One leaf filling most of the frame", "Even daylight, no harsh flash", "Leaf surface sharply in focus"].map((tip) => (
+                            <li key={tip} className="rounded-sm border border-line bg-white px-3 py-2">{tip}</li>
+                          ))}
+                        </ul>
+                        <button type="button" onClick={handleReset} className="press mt-6 inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-md border border-line-2 bg-white text-ink hover:bg-paper-2 cursor-pointer">
+                          Upload another photograph <ArrowRight className="w-3.5 h-3.5 text-ink-3" />
                         </button>
                       </div>
                     )}
@@ -689,7 +771,7 @@ export default function DetectionPage() {
                       <div className="bg-rust-50 border border-rust-100 rounded-md p-4 text-xs text-rust-700 flex items-start gap-2.5 reveal" role="alert">
                         <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                         <div className="space-y-2 flex-1">
-                          <div className="font-medium">{result.stage || "Inference error"}</div>
+                          <div className="font-medium">Analysis could not be completed</div>
                           <div className="leading-relaxed">{result.message}</div>
                           <button type="button" onClick={handleAnalyze} className="press inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-sm border border-rust-600/40 bg-white text-rust-700 hover:bg-rust-100 cursor-pointer">
                             <RefreshCw className="w-3.5 h-3.5" /> Retry
@@ -701,189 +783,133 @@ export default function DetectionPage() {
                     {/* SUCCESS */}
                     {result.status === "success" && (
                       <div className="space-y-6">
-                        {/* Specimen reference + validation telemetry */}
-                        <div className="flex items-stretch gap-4 reveal" style={{ ["--delay" as string]: "0ms" }}>
-                          {imagePreview && (
-                            <div className="relative w-20 h-20 shrink-0 rounded-md overflow-hidden border border-line bg-paper-2">
-                              <Image src={imagePreview} alt="Analyzed specimen" fill className="object-cover" unoptimized />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0 flex flex-col justify-between gap-2 text-xs border border-line rounded-sm px-3.5 py-2.5 bg-paper">
-                            <div className="flex items-center gap-1.5 font-medium">
-                              {result.crop_status === "confirmed" ? (
-                                <>
-                                  <CheckCircle2 className="w-4 h-4 text-forest-700" />
-                                  <span className="text-forest-800">Apple leaf confirmed</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Info className="w-4 h-4 text-ink-3" />
-                                  <span className="text-ink">Image checks passed</span>
-                                </>
-                              )}
-                            </div>
-                            <span className="font-mono text-ink-3 tabular truncate">
-                              Crop: {result.predicted_crop} ({((result.crop_confidence ?? 0) * 100).toFixed(1)}%) · leaf similarity {result.similarity?.toFixed(3)}
-                            </span>
-                            {result.crop_notice && result.crop_status !== "confirmed" && (
-                              <span className="text-xs text-ink-3 leading-snug line-clamp-2">{result.crop_notice}</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* ALL MODELS */}
-                        {isAllMode && result.model_results && result.agreement && (
-                          <div className="space-y-4">
-                            <div
-                              className={cx(
-                                "rounded-md border p-4 flex items-start gap-3 reveal",
-                                result.agreement.unanimous ? "bg-forest-50/70 border-forest-100" : "bg-ochre-50/70 border-ochre-100"
-                              )}
-                              style={{ ["--delay" as string]: "80ms" }}
-                            >
-                              {result.agreement.unanimous ? (
-                                <CheckCircle2 className="w-5 h-5 shrink-0 text-forest-700 mt-0.5" />
-                              ) : (
-                                <AlertTriangle className="w-5 h-5 shrink-0 text-ochre-700 mt-0.5" />
-                              )}
-                              <div className="space-y-1">
-                                <div className="font-display text-xl text-ink leading-tight">
-                                  {result.agreement.unanimous
-                                    ? `All four models agree: ${result.agreement.majority_label}`
-                                    : `The models disagree: ${result.agreement.votes.Healthy} say Healthy, ${result.agreement.votes.Alternaria} say Alternaria`}
-                                </div>
-                                {!result.agreement.unanimous && (
-                                  <div className="text-xs text-ink-2">
-                                    Majority: <strong>{result.agreement.majority_label}</strong>
-                                    {result.agreement.disagreeing_models.length > 0 && <> · Differing: {result.agreement.disagreeing_models.join(", ")}</>}
-                                  </div>
-                                )}
-                                <div className="text-xs text-ink-3 leading-snug">{result.agreement.note}</div>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {result.model_results.map((r, i) => {
-                                const differs = result.agreement?.majority_prediction != null && r.prediction !== result.agreement.majority_prediction;
-                                const healthy = r.prediction === "Healthy";
-                                const delay = 160 + i * 90;
-                                return (
-                                  <article
-                                    key={r.model_key}
-                                    className={cx("rounded-md border p-4 space-y-3 bg-white reveal", differs ? "border-ochre-500/60" : "border-line")}
-                                    style={{ ["--delay" as string]: `${delay}ms` }}
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="font-display text-lg text-ink">{r.model_name}</span>
-                                      {differs && <Badge tone="ochre">Differs from majority</Badge>}
-                                    </div>
-                                    <div className="flex items-center gap-2.5">
-                                      {healthy ? <CheckCircle2 className="w-5 h-5 text-forest-700 shrink-0" /> : <AlertTriangle className="w-5 h-5 text-rust-600 shrink-0" />}
-                                      <span className={cx("font-display text-2xl leading-none", healthy ? "text-forest-800" : "text-rust-700")}>{r.label}</span>
-                                    </div>
-                                    <div className="flex items-baseline justify-between text-[13px]">
-                                      <span className="text-ink-3">Confidence score</span>
-                                      <ConfidenceValue value={r.confidence} delay={delay} className="font-display text-2xl text-ink" />
-                                    </div>
-                                    <ProbabilityBar healthy={r.probabilities.Healthy} alternaria={r.probabilities.Alternaria} delay={delay} />
-                                    <div className="flex items-center justify-between font-mono text-xs text-ink-3 tabular">
-                                      <span>H {(r.probabilities.Healthy * 100).toFixed(1)}% · A {(r.probabilities.Alternaria * 100).toFixed(1)}%</span>
-                                      <span>{r.inference_ms.toFixed(1)} ms</span>
-                                    </div>
-                                  </article>
-                                );
-                              })}
-                            </div>
-                            <p className="text-xs text-ink-3 leading-relaxed reveal" style={{ ["--delay" as string]: "560ms" }}>
-                              Each card shows one model&apos;s own prediction; nothing is averaged. Time is that model&apos;s forward pass on the server CPU and excludes the image checks. {result.confidence_note}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* SINGLE MODEL / LEGACY CONSENSUS */}
-                        {!isAllMode && (
-                          <div
-                            className={cx("rounded-md border p-6 space-y-4 reveal", isHealthy ? "bg-forest-50/60 border-forest-100" : "bg-rust-50/60 border-rust-100")}
-                            style={{ ["--delay" as string]: "80ms" }}
+                        {/* ALL MODELS: one row per model, results not combined */}
+                        {isAllMode && result.model_results && (
+                          <VerdictCard
+                            verdict="compare"
+                            kicker="All models"
+                            label="Individual model results"
+                            preview={imagePreview}
+                            aside={
+                              <>
+                                <div className="text-xs text-ink-3">Models run</div>
+                                <div className="font-display text-3xl text-ink tabular leading-none sm:mt-1.5">{modelCount}</div>
+                              </>
+                            }
                           >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-[13px] text-ink-3">{result.mode === "single" ? "Prediction" : "Combined prediction"}</span>
-                              {result.confidence !== undefined && (
-                                <span className={cx("inline-flex items-baseline gap-1.5 text-[13px]", isHealthy ? "text-forest-800" : "text-rust-700")}>
-                                  <ConfidenceValue value={result.confidence} delay={200} className="font-display text-2xl" /> {confidenceLabel}
-                                </span>
+                            <div role="table" aria-label="Per-model predictions">
+                              <div role="row" className={cx(MODEL_GRID, "hidden sm:grid px-6 py-2.5 text-xs text-ink-3 border-b border-line bg-paper/50")}>
+                                <span role="columnheader">Model</span>
+                                <span role="columnheader">Prediction</span>
+                                <span role="columnheader">P(Alternaria)</span>
+                                <span role="columnheader" className="text-right">Confidence</span>
+                                <span role="columnheader" className={cx(WIDE_ONLY, "text-right")}>Test acc.</span>
+                                <span role="columnheader" className={cx(WIDE_ONLY, "text-right")}>Size</span>
+                                <span role="columnheader" className="text-right">Inference</span>
+                              </div>
+                              <div className="divide-y divide-line">
+                                {result.model_results.map((r, i) => {
+                                  const healthy = r.prediction === "Healthy";
+                                  const delay = 120 + i * 80;
+                                  const metric = realMetric(r.model_key);
+                                  const testAcc = metric ? `${(metric.testAccuracy * 100).toFixed(2)}%` : "–";
+                                  const size = metric ? sizeLabel(metric.fileSizeMb) : "–";
+                                  return (
+                                    <div key={r.model_key} role="row" className={cx(MODEL_GRID, "px-5 sm:px-6 py-3.5 reveal")} style={{ ["--delay" as string]: `${delay}ms` }}>
+                                      <span role="cell" className="text-sm font-medium text-ink min-w-0">
+                                        <span className="block truncate">{r.model_name}</span>
+                                        <span className={cx(NARROW_ONLY, "text-xs font-normal text-ink-3 tabular mt-0.5")}>
+                                          <span className="whitespace-nowrap">Test {testAcc}</span> · <span className="whitespace-nowrap">{size}</span>
+                                        </span>
+                                      </span>
+                                      <span role="cell" className={cx("order-last sm:order-none text-[13px] inline-flex items-center gap-1.5", healthy ? "text-forest-800" : "text-rust-700")}>
+                                        <Dot tone={healthy ? "forest" : "rust"} /> {r.label}
+                                      </span>
+                                      <span role="cell" className="hidden sm:block">
+                                        <MeterBar value={r.probabilities.Alternaria} tone="rust" delay={delay} />
+                                      </span>
+                                      <span role="cell" className="text-right">
+                                        <ConfidenceValue value={r.confidence} delay={delay} className="font-display text-lg text-ink" />
+                                      </span>
+                                      <span role="cell" className={cx(WIDE_ONLY, "text-right text-xs text-ink-2 tabular")}>{testAcc}</span>
+                                      <span role="cell" className={cx(WIDE_ONLY, "text-right text-xs text-ink-3 tabular")}>{size}</span>
+                                      <span role="cell" className="hidden sm:block text-right text-xs text-ink-3 tabular">{r.inference_ms.toFixed(1)} ms</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </VerdictCard>
+                        )}
+
+                        {/* SINGLE MODEL */}
+                        {!isAllMode && (
+                          <VerdictCard
+                            verdict={isHealthy ? "healthy" : "alternaria"}
+                            kicker="Screening result"
+                            label={result.final_label || (isHealthy ? "Healthy Leaf" : "Alternaria Leaf Spot")}
+                            preview={imagePreview}
+                            aside={
+                              result.confidence !== undefined && (
+                                <>
+                                  <div className="text-xs text-ink-3">Model confidence</div>
+                                  <ConfidenceValue
+                                    value={result.confidence}
+                                    delay={150}
+                                    className={cx("block font-display text-3xl leading-none sm:mt-1.5", isHealthy ? "text-forest-800" : "text-rust-700")}
+                                  />
+                                </>
+                              )
+                            }
+                          >
+                            <div className="px-5 sm:px-6 py-5 space-y-4">
+                              {result.probabilities && (
+                                <div className="space-y-3">
+                                  <div className="text-xs font-medium text-ink-3">Class probabilities</div>
+                                  <ClassRow name="Healthy foliage" value={result.probabilities.Healthy} tone="forest" emphasis={isHealthy} delay={200} />
+                                  <ClassRow name="Alternaria leaf spot" value={result.probabilities.Alternaria} tone="rust" emphasis={!isHealthy} delay={260} />
+                                </div>
+                              )}
+                              {result.mode === "single" && result.model_name && (
+                                <SpecimenLabel className="pt-3 border-t border-line">
+                                  <span>Model · {result.model_name}</span>
+                                  {result.inference_ms !== undefined && (
+                                    <>
+                                      <span>·</span>
+                                      <span>Inference {result.inference_ms.toFixed(1)} ms</span>
+                                    </>
+                                  )}
+                                  <span>·</span>
+                                  <span>Input 224 × 224</span>
+                                </SpecimenLabel>
                               )}
                             </div>
-                            <div className="flex items-start gap-4">
-                              {isHealthy ? <CheckCircle2 className="w-9 h-9 text-forest-700 shrink-0 mt-1" strokeWidth={1.5} /> : <AlertTriangle className="w-9 h-9 text-rust-600 shrink-0 mt-1" strokeWidth={1.5} />}
-                              <div className="min-w-0">
-                                <h2 className={cx("text-3xl sm:text-4xl leading-none", isHealthy ? "text-forest-800" : "text-rust-700")}>
-                                  {result.final_label || (isHealthy ? "Healthy Leaf" : "Alternaria Leaf Spot")}
-                                </h2>
-                                {result.mode === "single" && result.model_name && (
-                                  <SpecimenLabel className="mt-2">
-                                    <span>Model · {result.model_name}</span>
-                                    {result.inference_ms !== undefined && (
-                                      <>
-                                        <span>·</span>
-                                        <span>{result.inference_ms.toFixed(1)} ms inference</span>
-                                      </>
-                                    )}
-                                  </SpecimenLabel>
-                                )}
-                              </div>
-                            </div>
-                            {result.probabilities && (
-                              <div className="space-y-1.5 pt-1">
-                                <ProbabilityBar healthy={result.probabilities.Healthy} alternaria={result.probabilities.Alternaria} delay={200} />
-                                <div className="flex justify-between font-mono text-xs text-ink-3 tabular">
-                                  <span>Healthy {(result.probabilities.Healthy * 100).toFixed(1)}%</span>
-                                  <span>Alternaria {(result.probabilities.Alternaria * 100).toFixed(1)}%</span>
-                                </div>
-                              </div>
-                            )}
-                            {result.explanation && <p className="text-xs text-ink-2 leading-relaxed border-t border-line/70 pt-3">{result.explanation}</p>}
-                            {result.confidence_note && <p className="text-xs text-ink-3 leading-relaxed">{result.confidence_note}</p>}
-                          </div>
+                          </VerdictCard>
                         )}
 
-                        {/* Agronomic advisory */}
-                        {result.treatment_guidance && (
-                          <div className="space-y-2.5 reveal" style={{ ["--delay" as string]: isAllMode ? "640ms" : "260ms" }}>
-                            <div className="flex items-baseline gap-2 flex-wrap">
-                              <h3 className="text-lg text-ink">General guidance</h3>
-                              <span className="text-xs text-ink-3">
-                                {isAllMode ? "based on the majority prediction · " : ""}general reference notes, not advice for your orchard
-                              </span>
-                            </div>
-                            <dl className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-line border border-line rounded-sm text-[13px] bg-white">
-                              <div className="p-4 space-y-1">
-                                <dt className="text-ink-3">What this result means</dt>
-                                <dd className="text-ink leading-relaxed">{result.treatment_guidance.pathogen}</dd>
-                              </div>
-                              <div className="p-4 space-y-1">
-                                <dt className="text-ink-3">Typical signs</dt>
-                                <dd className="text-ink leading-relaxed">{result.treatment_guidance.symptoms}</dd>
-                              </div>
-                              <div className="p-4 space-y-1">
-                                <dt className="text-ink-3">Suggested next step</dt>
-                                <dd className="text-ink leading-relaxed">{result.treatment_guidance.recommended_action}</dd>
-                              </div>
-                            </dl>
-                            <p className="text-xs text-ink-3 leading-relaxed">
-                              A prediction is an initial screening result. Before deciding on any treatment, confirm the finding with a qualified
-                              agricultural expert or your local horticulture extension service.
-                            </p>
-                          </div>
-                        )}
+                        <InterpretationPanel
+                          verdict={isAllMode ? allGuidance : isHealthy ? "healthy" : "alternaria"}
+                          delay={isAllMode ? 480 : 220}
+                        />
 
-                        <div className="pt-3 border-t border-line flex flex-wrap justify-end gap-2 reveal" style={{ ["--delay" as string]: isAllMode ? "720ms" : "340ms" }}>
-                          <button type="button" onClick={handleAnalyze} className="press inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-md border border-line bg-white text-ink-2 hover:bg-paper-2 cursor-pointer">
-                            <RefreshCw className="w-3.5 h-3.5 text-ink-3" /> Run again
-                          </button>
-                          <button type="button" onClick={handleReset} className="press inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-md border border-line-2 bg-white text-ink hover:bg-paper-2 cursor-pointer">
-                            Check another leaf <ArrowRight className="w-3.5 h-3.5 text-ink-3" />
-                          </button>
+                        <div
+                          className="pt-4 border-t border-line flex flex-col sm:flex-row sm:items-center justify-between gap-4 reveal"
+                          style={{ ["--delay" as string]: isAllMode ? "560ms" : "300ms" }}
+                        >
+                          <p className="text-xs text-ink-3 leading-relaxed max-w-sm">
+                            {isAllMode
+                              ? "Each row is an independent prediction from one model. Test accuracy is each model's score on the 1,299 original test photographs, not on this image. "
+                              : ""}
+                            Confidence reflects the model&apos;s certainty for this photograph, not a confirmed diagnosis.
+                          </p>
+                          <div className="flex flex-wrap gap-2 shrink-0">
+                            <button type="button" onClick={handleAnalyze} className="press inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-md border border-line bg-white text-ink-2 hover:bg-paper-2 cursor-pointer">
+                              <RefreshCw className="w-3.5 h-3.5 text-ink-3" /> Run again
+                            </button>
+                            <button type="button" onClick={handleReset} className="press inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-md border border-line-2 bg-white text-ink hover:bg-paper-2 cursor-pointer">
+                              Analyse another leaf <ArrowRight className="w-3.5 h-3.5 text-ink-3" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -893,20 +919,17 @@ export default function DetectionPage() {
             </section>
           </div>
 
-          {/* validation notes: after the readout on stacked layouts, under the controls on desktop */}
+          {/* reading notes: after the readout on stacked layouts, under the controls on desktop */}
           <div className="lg:col-span-5">
             <div className="text-[13px] text-ink-3 leading-relaxed space-y-1.5 px-1 lg:-mt-2">
               <div className="flex items-center gap-1.5 text-ink-2 font-medium">
-                <ShieldCheck className="w-3.5 h-3.5 text-forest-700" /> What happens to your photograph
+                <Info className="w-3.5 h-3.5 text-forest-700" /> Reading the result
               </div>
               <ul className="space-y-1 pl-5 list-disc marker:text-sage-400">
-                <li>Step 1 stops images that do not look like a leaf, such as desks, screens or scenery.</li>
-                <li>Step 2 checks that the leaf appears to be from an apple tree, using a classifier trained on 36 crops.</li>
-                <li>Step 3 runs the model you selected. All Models runs all four on the same prepared image.</li>
-                <li>
-                  The confidence score is the model&apos;s probability for its predicted class. It is not the probability that the plant is truly
-                  diseased, and no result here is a confirmed diagnosis.
-                </li>
+                <li>Each photograph is classified as healthy apple foliage or Alternaria leaf spot.</li>
+                <li>Confidence is the model&apos;s probability for the predicted class; values close to 50% indicate an uncertain image.</li>
+                <li>Other diseases, pest damage and nutrient disorders are outside the scope of these models.</li>
+                <li>Results are for early screening and should be confirmed by a qualified agricultural expert before any treatment.</li>
               </ul>
             </div>
           </div>

@@ -1,7 +1,7 @@
 """
 Group-Aware, Stratified, Deterministic Train / Validation / Test Splitting
 ==========================================================================
-Project: Apple Leaf Alternaria Detection: An AI-Based Approach Using Deep Learning and Explainable AI
+Project: AppleAlt: AI-Based Apple Leaf Alternaria Detection
 
 Input : results/retrained/dataset_manifest.csv   (built by code/03_perceptual_hash_audit.py)
 Output: results/retrained/dataset_manifest.csv   (split column filled: train / val / test / excluded)

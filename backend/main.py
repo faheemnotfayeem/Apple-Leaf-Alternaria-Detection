@@ -11,7 +11,6 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageOps
-import numpy as np
 import torch
 from torchvision import transforms
 import timm
@@ -31,7 +30,7 @@ import importlib.util
 from train_comparative_models import build_comparative_model
 
 app = FastAPI(
-    title="Apple Leaf Alternaria Detection API",
+    title="AppleAlt API",
     description="Inference backend for 3-stage validation and 4-model comparative disease classification.",
     version="1.0.0",
 )
@@ -73,10 +72,12 @@ _crop_labels = None
 _disease_models: Dict[str, torch.nn.Module] = {}
 _model_load_lock = threading.Lock()   # guards lazy checkpoint loading / cache mutation across concurrent requests
 
+# Model used when the `model` form field is omitted (recommended for deployment)
+DEFAULT_MODEL = "mobilenetv2"
+
 # Accepted values of the optional `model` form field on /api/predict
 MODEL_OPTIONS = {
-    "ensemble": "legacy default: 4-model majority vote, one final prediction (used when `model` is omitted)",
-    "all": "run all four models on the same image and return every model's prediction for comparison",
+    "all": "run all four models on the same image and return each model's prediction separately",
     **{k: f"run only {v['display_name']}" for k, v in MODEL_SPECS.items()},
 }
 
@@ -172,7 +173,7 @@ def startup_event():
 def root():
     return {
         "status": "online",
-        "service": "Apple Leaf Alternaria Detection API",
+        "service": "AppleAlt API",
         "version": "1.0.0",
         "frontend_url": "http://localhost:3000",
         "docs_url": "/docs",
@@ -271,16 +272,11 @@ def get_metrics():
     }
 
 
-# Tie-breaker model label reported in debug diagnostics. Legacy validation-accuracy
-# rankings were removed with the old checkpoints; re-rank after the retrained evaluation.
-TIE_BREAKER_MODEL = "mobilenetv2"
-
-
 def resolve_model_mode(model: Optional[str]):
-    """Maps the optional `model` form field to (mode, keys). Omitted / 'ensemble' keeps the legacy behaviour."""
+    """Maps the optional `model` form field to (mode, keys). Omitted = DEFAULT_MODEL only."""
     value = (model or "").strip().lower()
-    if value in ("", "ensemble", "consensus", "vote"):
-        return "ensemble", list(MODEL_SPECS.keys())
+    if value == "":
+        return "single", [DEFAULT_MODEL]
     if value == "all":
         return "all", list(MODEL_SPECS.keys())
     if value in MODEL_SPECS:
@@ -347,28 +343,13 @@ def _stage3_selected(mode: str, keys: List[str], image: Image.Image, common: Dic
             "treatment_guidance": _treatment(r["prediction"], r["label"]),
         }
 
-    votes = {"Healthy": sum(1 for r in results if r["prediction"] == "Healthy")}
-    votes["Alternaria"] = len(results) - votes["Healthy"]
-    if votes["Healthy"] == votes["Alternaria"]:
-        majority, majority_label = None, "No majority (2-2 split)"
-    else:
-        majority = "Healthy" if votes["Healthy"] > votes["Alternaria"] else "Alternaria"
-        majority_label = "Healthy Leaf" if majority == "Healthy" else "Alternaria Leaf Spot"
-    disagreeing = [r["model_name"] for r in results if majority is not None and r["prediction"] != majority]
+    # Four independent results, reported as-is: no vote, no combined prediction.
     return {
         "status": "success", "stage": "Stage 3 (Complete)", "mode": "all",
         **common,
         "model_results": results,
-        "agreement": {
-            "unanimous": len({r["prediction"] for r in results}) == 1,
-            "votes": votes,
-            "majority_prediction": majority,
-            "majority_label": majority_label,
-            "disagreeing_models": disagreeing,
-            "note": "Majority of four independent model outputs shown for comparison only; it is not a validated clinical or scientific consensus.",
-        },
+        "results_note": "Each model analysed the image independently; the four results are reported separately.",
         "confidence_type": "model_confidence", "confidence_note": confidence_note,
-        "treatment_guidance": _treatment(majority, majority_label) if majority else None,
     }
 
 
@@ -378,12 +359,11 @@ def predict_info():
     """Informational response for GET requests to the prediction endpoint."""
     return {
         "status": "active",
-        "service": "Apple Leaf Alternaria Detection Pathology Classifier",
+        "service": "AppleAlt Pathology Classifier",
         "method": "POST",
         "expected_payload": "multipart/form-data with 'file' (image file)",
-        "voting_ensemble": "4-model majority voting (MobileNetV2, ResNet18, VGG16, VGG19)",
+        "default_model": DEFAULT_MODEL,
         "model_options": MODEL_OPTIONS,
-        "tie_breaker": "Healthy Leaf (conservative rule: disease requires strict majority evidence)",
         "web_interface": "http://localhost:3000/detection",
     }
 
@@ -399,8 +379,9 @@ async def predict(
     Executes the 3-Stage Cascaded Diagnostic Pipeline:
       Stage 1: Foliar authenticity gatekeeper
       Stage 2: 36-Crop plant species identification
-      Stage 3: 4-Model majority-voting disease classification (Healthy Leaf vs Alternaria Leaf Spot)
-    Optional form field `model`: omitted/'ensemble' = legacy voting; 'all' = per-model comparison; a model key = that model only.
+      Stage 3: Disease classification (Healthy Leaf vs Alternaria Leaf Spot)
+    Optional form field `model`: a model key = that model only (omitted = MobileNetV2);
+    'all' = all four models, each result reported separately and never combined.
     """
     mode, selected_keys = resolve_model_mode(model)
 
@@ -495,116 +476,5 @@ async def predict(
     if debug:
         common_fields["top3_crops"] = top3_crops
 
-    # STAGE 3 (explicit modes): one selected model, or all four reported individually
-    if mode in ("single", "all"):
-        return _stage3_selected(mode, selected_keys, image, common_fields)
-
-    # STAGE 3: DISEASE CLASSIFICATION (All 4 Comparative Architectures via Majority Voting)
-    try:
-        disease_input = DISEASE_TRANSFORM(image).unsqueeze(0).to(DEVICE)
-
-        votes: Dict[str, str] = {}
-        probs_by_model: Dict[str, Dict[str, float]] = {}
-
-        with torch.inference_mode():
-            for m_key in MODEL_SPECS:
-                _, m_model = get_disease_model(m_key)
-                m_logits = m_model(disease_input)
-                m_probs = torch.softmax(m_logits, dim=1)[0]
-
-                m_pred_idx = int(torch.argmax(m_probs).item())
-                m_pred_cls = CLASSES[m_pred_idx]
-                m_prob_h = float(m_probs[0].item())
-                m_prob_a = float(m_probs[1].item())
-
-                votes[m_key] = m_pred_cls
-                probs_by_model[m_key] = {
-                    "Healthy": round(m_prob_h, 4),
-                    "Alternaria": round(m_prob_a, 4),
-                }
-
-        # Multi-model majority voting logic:
-        # Each model casts one vote based on its predicted class.
-        n_alternaria = sum(1 for cls_name in votes.values() if cls_name == "Alternaria")
-        n_healthy = 4 - n_alternaria
-
-        is_tie = False
-        tie_break_used = False
-
-        if n_healthy >= 3:
-            final_prediction = "Healthy"
-            final_label = "Healthy Leaf"
-            explanation = (
-                f"Consensus diagnosis: {n_healthy} of 4 transfer learning models voted Healthy Leaf."
-                if n_healthy < 4
-                else "Unanimous consensus across all 4 transfer learning models (4/4 voted Healthy Leaf)."
-            )
-        elif n_alternaria >= 3:
-            final_prediction = "Alternaria"
-            final_label = "Alternaria Leaf Spot"
-            explanation = (
-                f"Consensus diagnosis: {n_alternaria} of 4 transfer learning models voted Alternaria Leaf Spot."
-                if n_alternaria < 4
-                else "Unanimous consensus across all 4 transfer learning models (4/4 voted Alternaria Leaf Spot)."
-            )
-        else:
-            # 2–2 tie: When 2 models predict Healthy and 2 predict Alternaria,
-            # conservative tie-breaking rule resolves to Healthy Leaf to prevent false-positive disease misdiagnosis.
-            is_tie = True
-            tie_break_used = True
-            final_prediction = "Healthy"
-            final_label = "Healthy Leaf"
-            explanation = (
-                "2–2 tie between models resolved as Healthy Leaf (conservative rule: disease requires strict majority evidence)."
-            )
-
-        # Defensible confidence calculation:
-        # Mean posterior probability assigned to the winning class across the models in the winning coalition
-        winning_coalition = [m for m, cls_name in votes.items() if cls_name == final_prediction]
-        winning_probs = [probs_by_model[m][final_prediction] for m in winning_coalition]
-        ensemble_confidence = float(np.mean(winning_probs))
-
-    except Exception as exc:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "stage": "Stage 3 (Disease Classification)",
-                "message": f"Disease classifier failure: {exc}",
-            },
-        )
-
-    response_data: Dict[str, Any] = {
-        "status": "success",
-        "stage": "Stage 3 (Complete)",
-        "mode": "ensemble",
-        "similarity": round(float(similarity), 4),
-        "crop_status": crop_status,
-        "crop_notice": crop_notice,
-        "predicted_crop": predicted_crop,
-        "crop_confidence": round(crop_confidence, 4),
-        "apple_confidence": round(apple_confidence, 4),
-        "final_prediction": final_prediction,
-        "final_label": final_label,
-        "confidence": round(ensemble_confidence, 4),
-        "explanation": explanation,
-        "treatment_guidance": {
-            "title": final_label,
-            "pathogen": "Alternaria leaf spot, a fungal disease of apple (Alternaria alternata)" if final_prediction == "Alternaria" else "No signs of Alternaria leaf spot in this photograph",
-            "symptoms": "Small, round brown spots on the leaf, sometimes with yellowish tissue around them; spots can merge as the disease advances." if final_prediction == "Alternaria" else "Even green colour, normal veins, no spots seen.",
-            "recommended_action": "Treat this as a screening result. Have the leaf examined by a qualified agricultural expert or your local horticulture extension service before choosing any treatment." if final_prediction == "Alternaria" else "Continue routine orchard care and keep checking leaves regularly. A single photograph cannot rule out disease elsewhere on the tree.",
-        },
-    }
-
-    if debug:
-        response_data["internal_diagnostics"] = {
-            "votes": votes,
-            "vote_counts": {"Healthy": n_healthy, "Alternaria": n_alternaria},
-            "is_tie": is_tie,
-            "tie_break_used": tie_break_used,
-            "tie_breaker_model": TIE_BREAKER_MODEL,
-            "winning_coalition": winning_coalition,
-            "individual_probabilities": probs_by_model,
-        }
-
-    return response_data
+    # STAGE 3: one selected model (MobileNetV2 by default), or all four reported individually
+    return _stage3_selected(mode, selected_keys, image, common_fields)

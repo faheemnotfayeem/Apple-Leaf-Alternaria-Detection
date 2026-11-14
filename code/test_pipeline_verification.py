@@ -78,6 +78,7 @@ def test_full_pipeline():
         res_mb = app.run_diagnostic_pipeline(img, gatekeeper, crop_detector_bundle)
         status = res_mb["status"]
         sim = res_mb.get("similarity", 0.0)
+        mb = next((r for r in res_mb.get("model_results", []) if r["model_name"] == "MobileNetV2"), None)
         
         row = {
             "Specimen": name,
@@ -86,8 +87,8 @@ def test_full_pipeline():
             "Stage 1 Sim": f"{sim:.4f}",
             "Stage 2 Pred": res_mb.get("predicted_crop", "N/A"),
             "Stage 2 Conf": f"{res_mb.get('crop_confidence', 0.0)*100:.1f}%" if "crop_confidence" in res_mb else "N/A",
-            "Stage 3 Pred": res_mb.get("final_prediction", "Blocked"),
-            "Stage 3 Conf": f"{res_mb.get('confidence', 0.0)*100:.1f}%" if "confidence" in res_mb else "Blocked",
+            "Stage 3 Pred": mb["prediction"] if mb else "Blocked",
+            "Stage 3 Conf": f"{mb['confidence']*100:.1f}%" if mb else "Blocked",
         }
         results_table.append(row)
         print(f"  -> Result: {status}")
@@ -100,12 +101,14 @@ def test_full_pipeline():
         elif status == "rejected_low_confidence":
             print(f"     Rejected at Stage 2: Low confidence Apple ({row['Stage 2 Conf']})")
 
-    # 4-model majority-voting consensus on the two known specimens
+    # Each of the four models on the two known specimens, reported separately (not combined)
     for title, path in (("Known Healthy Apple Leaf", healthy_path), ("Known Alternaria Apple Leaf", alternaria_path)):
-        print(f"\n3. 4-model consensus on {title}:")
+        print(f"\n3. Individual model results on {title}:")
         res = app.run_diagnostic_pipeline(Image.open(path), gatekeeper, crop_detector_bundle)
         if res["status"] == "success":
-            print(f"  - Consensus: {res['final_label']} ({res['confidence']*100:.2f}%) | {res['explanation']}")
+            assert "final_prediction" not in res, "results must not be combined into one prediction"
+            for r in res["model_results"]:
+                print(f"  - {r['model_name']}: {r['label']} ({r['confidence']*100:.2f}%)")
         else:
             print(f"  - Blocked at {res.get('stage')}: {res.get('message')}")
 

@@ -21,7 +21,10 @@ export default function Footer() {
               <span className="w-8 h-8 rounded-full bg-forest-700 text-white flex items-center justify-center">
                 <Leaf className="w-4 h-4" strokeWidth={1.75} />
               </span>
-              <span className="font-display text-lg text-ink">Apple Leaf Alternaria Detection</span>
+              <div className="leading-tight">
+                <span className="block font-display text-lg text-ink">AppleAlt</span>
+                <span className="block text-xs text-ink-3">AI-Based Apple Leaf Alternaria Detection</span>
+              </div>
             </div>
             <p className="text-sm text-ink-2 leading-relaxed max-w-md">
               A final-year B.Tech project that screens photographs of apple leaves for Alternaria leaf spot using four transfer-learning
@@ -57,11 +60,16 @@ export default function Footer() {
                 <li key={m.id} className="flex items-center justify-between gap-4 border-b border-line pb-2">
                   <span className="text-ink-2">
                     {m.name}
-                    {m.isRecommended && <span className="block sm:inline sm:ml-2 text-xs text-forest-700">recommended</span>}
+                    {/* leading space (not margin) so the badge can wrap below the name in narrow columns */}
+                    {m.isRecommended && <span className="block sm:inline text-xs text-forest-700"> recommended</span>}
                   </span>
-                  <span className="text-ink whitespace-nowrap">
+                  {/* md–lg: the column is too narrow for "99.54% · 11.6 ms" on one line, so latency drops below */}
+                  <span className="text-ink whitespace-nowrap text-right">
                     {(m.testAccuracy * 100).toFixed(2)}%
-                    <span className="text-ink-3"> · {m.latencyMs.toFixed(1)} ms</span>
+                    <span className="text-ink-3 md:block lg:inline">
+                      <span className="md:hidden lg:inline"> · </span>
+                      {m.latencyMs.toFixed(1)} ms
+                    </span>
                   </span>
                 </li>
               ))}
@@ -71,7 +79,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 pt-6 border-t border-line flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-ink-3">
-          <span>&copy; 2026 Apple Leaf Alternaria Detection</span>
+          <span>&copy; 2026 AppleAlt</span>
           <span>
             Two classes: healthy apple foliage and Alternaria leaf spot &middot; {EVAL_SETS.full.images.toLocaleString()} test images, {EVAL_SETS.real.images.toLocaleString()} original photographs
           </span>

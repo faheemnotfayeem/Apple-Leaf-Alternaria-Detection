@@ -1,5 +1,5 @@
 # Comparative Held-Out Test Evaluation Report
-## Apple Leaf Alternaria Detection System
+## AppleAlt: AI-Based Apple Leaf Alternaria Detection
 **Academic Context**: Final Year B.Tech Project in CSE (Batch 2022–2026), GCET Safapora, Ganderbal, Kashmir
 **Evaluation Date**: 2026-10-17 14:18:30
 **Pathology Classes**: Exactly two classes: `0: Healthy Apple Leaf`, `1: Alternaria Leaf Spot` (*Alternaria alternata*)

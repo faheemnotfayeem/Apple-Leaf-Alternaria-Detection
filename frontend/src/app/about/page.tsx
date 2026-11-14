@@ -1,16 +1,75 @@
 import Image from "next/image";
-import { ShieldCheck, Cpu, Database, AlertTriangle, Code2 } from "lucide-react";
+import { ShieldCheck, Cpu, Database, AlertTriangle, Code2, Library, ArrowUpRight } from "lucide-react";
 import { COMPARISON_METRICS, REAL_SUBSET_METRICS, EVAL_SETS, DATASET_SPLITS } from "@/data/projectData";
 import { STAGE_COPY } from "@/data/stageCopy";
 import { PageHeader, Panel, Eyebrow, Badge, StatTile, pct, num } from "@/components/ui";
 import { PhotoChip, LesionCloseup } from "@/components/visuals";
+
+// Public datasets that make up DATASET/, identified from filename conventions and image counts
+// (results/retrained/dataset_audit_report.md). Links verified 2026-10-23.
+const DATA_SOURCES = [
+  {
+    name: "Indigenous Dataset for Apple Leaf Disease Detection and Classification",
+    origin: "Field photographs from apple orchards in Kashmir, Lovely Professional University",
+    images: "2,549 Alternaria · 2,459 healthy",
+    links: [
+      { label: "Mendeley Data", href: "https://data.mendeley.com/datasets/9m2dcb5mmr/3" },
+      { label: "Paper", href: "https://doi.org/10.1016/j.dib.2024.110165" },
+    ],
+  },
+  {
+    name: "AppleLeaf9",
+    origin: "Apple leaves photographed mostly in the wild, nine classes, of which two are used here",
+    images: "1,008 Alternaria · 516 healthy",
+    links: [
+      { label: "GitHub", href: "https://github.com/JasonYangCode/AppleLeaf9" },
+      { label: "Paper", href: "https://doi.org/10.3390/agronomy12112784" },
+    ],
+  },
+  {
+    name: "PlantVillage (Apple healthy class)",
+    origin: "Single leaves photographed on a plain bench background, with flipped and rotated copies",
+    images: "5,963 healthy",
+    links: [
+      { label: "GitHub", href: "https://github.com/spMohanty/PlantVillage-Dataset" },
+      { label: "Paper", href: "https://arxiv.org/abs/1511.08060" },
+    ],
+  },
+  {
+    name: "Apple Tree Leaf Disease Segmentation Dataset (ATLDSD)",
+    origin: "Leaf photographs with expert lesion masks; identified here by its class counts",
+    images: "278 Alternaria · 409 healthy",
+    links: [{ label: "Science Data Bank", href: "https://doi.org/10.57760/sciencedb.01627" }],
+  },
+];
+
+const REFERENCES = [
+  "Yatoo, A. A., & Sharma, A. (2024). An indigenous dataset for the detection and classification of apple leaf diseases. Data in Brief, 53, 110165.",
+  "Yang, Q., Duan, S., & Wang, L. (2022). Efficient identification of apple leaf diseases in the wild using convolutional neural networks. Agronomy, 12(11), 2784.",
+  "Hughes, D. P., & Salathé, M. (2015). An open access repository of images on plant health to enable the development of mobile disease diagnostics. arXiv:1511.08060.",
+  "Feng, J., & Chao, X. (2022). Apple Tree Leaf Disease Segmentation Dataset (Version V1) [Data set]. Science Data Bank.",
+];
+
+function SourceLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-0.5 text-forest-700 underline decoration-forest-700/30 underline-offset-2 hover:text-forest-800 hover:decoration-forest-800"
+    >
+      {children}
+      <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden />
+    </a>
+  );
+}
 
 export default function AboutPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14 space-y-12">
       <PageHeader
         eyebrow="About the project"
-        title="About Apple Leaf Alternaria Detection"
+        title="About AppleAlt"
         lede="A final-year B.Tech project that screens photographs of apple leaves for Alternaria leaf spot. It compares four transfer-learning models on a dataset split so that no leaf appears in both training and testing, and reports results in two clearly separated views."
       />
 
@@ -26,10 +85,9 @@ export default function AboutPage() {
               early, which weakens the tree and reduces fruit yield. Spotting it early helps growers decide when to look closer and seek advice.
             </p>
             <p>
-              <strong className="text-ink">Apple Leaf Alternaria Detection</strong> frames this as a two-class image classification task: given a photograph, decide between{" "}
+              <strong className="text-ink">AppleAlt</strong> frames this as a two-class image classification task: given a photograph, decide between{" "}
               <strong className="text-ink">healthy apple foliage</strong> (class 0) and <strong className="text-ink">Alternaria leaf spot</strong> (class 1). The project
-              builds the application, trains and compares four models for that task, and adds two screening checks so that photographs of non-leaves or other crops are
-              rejected rather than mis-scored.
+              trains and compares four models for that task and makes them available through a web application for screening individual leaf photographs.
             </p>
             <p>
               All four models use <strong className="text-ink">transfer learning</strong>: a network first trained on ImageNet, a very large general image collection, is
@@ -84,15 +142,63 @@ export default function AboutPage() {
         </div>
       </Panel>
 
+      {/* Data sources */}
+      <section className="space-y-5">
+        <div className="flex items-center gap-2">
+          <Library className="w-5 h-5 text-forest-700 shrink-0" strokeWidth={1.5} />
+          <h2 className="text-2xl text-ink">Data sources</h2>
+        </div>
+        <p className="text-sm text-ink-2 leading-relaxed max-w-3xl">
+          The image collection combines four public datasets. Each source was identified from its file naming and image counts during the dataset audit and matched to
+          its official page.
+        </p>
+        <div className="divide-y divide-line border-y border-line">
+          {DATA_SOURCES.map((s) => (
+            <article key={s.name} className="py-5 grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-8 items-start">
+              <div className="md:col-span-5">
+                <h3 className="text-lg text-ink leading-snug">{s.name}</h3>
+                <p className="text-[13px] text-ink-3 mt-1 leading-relaxed">{s.origin}</p>
+              </div>
+              <div className="md:col-span-4 text-[13px] text-ink-2 tabular">{s.images}</div>
+              <div className="md:col-span-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+                {s.links.map((l) => (
+                  <SourceLink key={l.href} href={l.href}>{l.label}</SourceLink>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-[13px] text-ink-3 leading-relaxed">
+          <div className="space-y-2">
+            <p>
+              <span className="font-medium text-ink-2">Generated images.</span> {num(4901)} synthetic images were created from the photographs above with{" "}
+              <SourceLink href="https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix">CycleGAN</SourceLink> and expanded with{" "}
+              <SourceLink href="https://github.com/mdbloice/Augmentor">Augmentor</SourceLink>. They are used in training only.
+            </p>
+            <p>
+              <span className="font-medium text-ink-2">Web images.</span> {num(3506)} images, including flipped and cropped copies, were collected individually from the
+              web.
+            </p>
+          </div>
+          <div>
+            <div className="eyebrow mb-2">References</div>
+            <ul className="space-y-1.5">
+              {REFERENCES.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
       {/* Pipeline */}
       <section className="space-y-5">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-forest-700 shrink-0" strokeWidth={1.5} />
-          <h2 className="text-2xl text-ink">The three-step screening pipeline</h2>
+          <h2 className="text-2xl text-ink">How a photograph is analysed</h2>
         </div>
         <p className="text-sm text-ink-2 leading-relaxed max-w-3xl">
-          A classifier trained on apple leaves will still produce an answer for a photograph of a desk or a tomato plant. Two screening steps run before the disease model
-          so that such images are rejected instead of mis-scored. Each step is a fixed rule applied the same way to every image.
+          Every photograph follows the same path, from capture to a screening result, using the same preprocessing the models were trained with.
         </p>
         <ol className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line border-y border-line">
           {STAGE_COPY.map((s) => (
@@ -196,17 +302,13 @@ export default function AboutPage() {
             by a qualified agricultural expert or extension service.
           </li>
           <li className="rule-accent pt-3">
-            <strong className="text-ink">The crop check knows 36 crops.</strong> Step 2 can only choose among 36 crop categories. A leaf from a plant outside that list is
-            assigned to whichever category looks most similar, so the 60% Apple threshold is a safeguard rather than a guarantee.
-          </li>
-          <li className="rule-accent pt-3">
             <strong className="text-ink">The dataset has limits.</strong> It mixes orchard photographs, bench photographs on plain backgrounds, small web images and, in
             training only, synthetic images. It does not cover every apple variety, region, camera, season or stage of the disease, so performance on new conditions may
             differ from the reported figures.
           </li>
           <li className="rule-accent pt-3">
-            <strong className="text-ink">Photo quality affects the first check.</strong> Strong flash, deep shadow, heavy blur or compression can push a genuine leaf
-            photograph below the 0.33 similarity threshold in step 1, in which case the application asks for another photograph rather than guessing.
+            <strong className="text-ink">Photo quality matters.</strong> Strong flash, deep shadow, heavy blur or compression can make a genuine leaf photograph
+            harder to analyse. When an image does not clearly show an apple leaf, the application asks for another photograph rather than guessing.
           </li>
         </ul>
       </Panel>

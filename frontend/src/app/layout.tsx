@@ -12,12 +12,12 @@ const geist = Geist({
 
 export const metadata: Metadata = {
   title: {
-    default: "Apple Leaf Alternaria Detection",
-    template: "%s · Apple Leaf Alternaria Detection",
+    default: "AppleAlt · AI-Based Apple Leaf Alternaria Detection",
+    template: "%s · AppleAlt",
   },
   description:
     "Upload a photograph of an apple leaf and find out whether it looks healthy or shows signs of Alternaria leaf spot, with a confidence score from one of four transfer-learning models.",
-  applicationName: "Apple Leaf Alternaria Detection",
+  applicationName: "AppleAlt",
   manifest: "/manifest.webmanifest",
 };
 

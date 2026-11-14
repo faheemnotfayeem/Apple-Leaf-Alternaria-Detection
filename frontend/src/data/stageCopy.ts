@@ -1,6 +1,5 @@
-/* Plain-language description of the three-stage pipeline.
-   Each entry pairs an everyday explanation with the exact technical detail an evaluator needs.
-   The thresholds and model names mirror the backend configuration and are not changed here. */
+/* Plain-language description of how a photograph becomes a screening result.
+   Each entry pairs an everyday explanation with a concise technical note for evaluators. */
 
 export interface StageCopy {
   number: number;
@@ -16,23 +15,23 @@ export interface StageCopy {
 export const STAGE_COPY: StageCopy[] = [
   {
     number: 1,
-    title: "Does the photo show a leaf?",
-    what: "The application first checks whether the uploaded photograph resembles the apple-leaf images it was built to analyse.",
-    why: "Photographs of rooms, screens or other objects are stopped here instead of being given a meaningless result.",
-    tech: "A MobileNetV2 feature extractor compares the image with an apple-leaf reference embedding; the image passes when the cosine similarity is at least 0.33. This is a similarity screen, not a botanical authentication test.",
+    title: "Photograph the leaf",
+    what: "Capture a single apple leaf in good, even light, filling most of the frame.",
+    why: "A sharp, well-lit image lets the model see the colour and texture changes that mark early lesions. Photographs that do not clearly show an apple leaf are declined rather than scored.",
+    tech: "Images are resized to 256 px, centre-cropped to 224 × 224 and normalised with ImageNet statistics, matching the training pipeline.",
   },
   {
     number: 2,
-    title: "Is it an apple leaf?",
-    what: "Next, the application checks whether the leaf appears to come from an apple tree rather than another crop.",
-    why: "The disease models were trained only on apple foliage, so leaves of other plants would produce unreliable results.",
-    tech: "A ConvNeXt-Small crop classifier from Hugging Face, trained on 36 crop categories, must rank Apple first with at least 60% confidence. This is an automated screening step, not a guarantee of species identification.",
+    title: "Analyse for Alternaria leaf spot",
+    what: "A fine-tuned convolutional network examines the leaf for the lesion patterns characteristic of Alternaria leaf spot.",
+    why: "The models learned from more than twenty thousand labelled apple-leaf images, evaluated on photographs they never saw during training.",
+    tech: "Four ImageNet-pretrained architectures (MobileNetV2, ResNet18, VGG16, VGG19) fine-tuned for two classes: healthy foliage and Alternaria leaf spot.",
   },
   {
     number: 3,
-    title: "Healthy, or Alternaria leaf spot?",
-    what: "Finally, the model you selected decides whether the leaf looks healthy or shows signs of Alternaria leaf spot, and reports a confidence score.",
-    why: "This is the result you act on: a prompt to look more closely or seek expert advice, not a confirmed diagnosis.",
-    tech: "One of four transfer-learning classifiers (MobileNetV2, ResNet18, VGG16 or VGG19) outputs a probability for each of two classes, healthy apple foliage (class 0) and Alternaria leaf spot (class 1). The confidence score is the probability of the predicted class.",
+    title: "Review the screening result",
+    what: "The result states whether the leaf appears healthy or affected, with the model's confidence and guidance on next steps.",
+    why: "Use it as an early prompt to inspect the tree more closely or seek expert advice, not as a confirmed diagnosis.",
+    tech: "Confidence is the softmax probability of the predicted class. Running all four models side by side shows where they agree.",
   },
 ];

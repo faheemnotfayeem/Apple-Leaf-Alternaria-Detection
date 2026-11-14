@@ -1,9 +1,9 @@
 """
 API tests for the model-selection modes of /api/predict (requires the backend on 127.0.0.1:8000).
-  - omitted `model`  -> legacy 4-model voting response (unchanged contract, no per-model exposure)
+  - omitted `model`  -> MobileNetV2 only (same response as model=mobilenetv2)
   - model=<key>      -> only that model, model-confidence response
-  - model=all        -> four independent results + agreement block
-  - unknown model    -> HTTP 400
+  - model=all        -> four independent results, not combined
+  - unknown model    -> HTTP 400 (including the removed 'ensemble' / 'vote' values)
 Usage: python code/test_model_selection.py [--base http://127.0.0.1:8000] [--image path]
 """
 import argparse, sys, time
@@ -41,12 +41,11 @@ def main():
         if not ok:
             fails.append(name)
 
-    # 1. legacy default
+    # 1. default (no model given) = MobileNetV2 only
     r, dt = post(a.base, image)
-    d = r.json()
+    default = r.json()
     chk("default: HTTP 200", r.status_code == 200, f"{dt:.1f}s")
-    chk("default: mode ensemble, one final prediction", d.get("mode") == "ensemble" and d.get("final_label") in ("Healthy Leaf", "Alternaria Leaf Spot"))
-    chk("default: per-model results NOT exposed", all(k not in d for k in ("model_results", "all_models", "probabilities", "internal_diagnostics")))
+    chk("default: MobileNetV2 single-model result", default.get("mode") == "single" and default.get("model_key") == "mobilenetv2")
 
     # 2. single models
     singles = {}
@@ -62,6 +61,8 @@ def main():
             and max(p, key=p.get) == d.get("final_prediction"))
         chk(f"{k}: inference time present", isinstance(d.get("inference_ms"), (int, float)) and d["inference_ms"] > 0, f"{d.get('inference_ms')} ms")
         singles[k] = d
+    chk("default: same prediction as model=mobilenetv2", default.get("final_prediction") == singles["mobilenetv2"]["final_prediction"]
+        and abs(default.get("confidence", -1) - singles["mobilenetv2"]["confidence"]) < 1e-3)
 
     # 3. all models
     r, dt = post(a.base, image, "all")
@@ -71,14 +72,14 @@ def main():
     chk("all: four results in canonical order", [x.get("model_key") for x in res] == KEYS)
     chk("all: each result matches the single-model call for the same image",
         all(x["prediction"] == singles[x["model_key"]]["final_prediction"] and abs(x["confidence"] - singles[x["model_key"]]["confidence"]) < 1e-3 for x in res))
-    ag = d.get("agreement", {})
-    chk("all: agreement block consistent", ag.get("votes", {}).get("Healthy", -1) + ag.get("votes", {}).get("Alternaria", -1) == 4
-        and ag.get("unanimous") == (len({x["prediction"] for x in res}) == 1) and "note" in ag)
-    print("    votes:", ag.get("votes"), "| majority:", ag.get("majority_label"), "| disagreeing:", ag.get("disagreeing_models"))
+    chk("all: results reported separately, no combined prediction",
+        "agreement" not in d and "final_prediction" not in d and "results_note" in d)
+    print("    predictions:", {x["model_name"]: x["prediction"] for x in res})
 
     # 4. invalid model
-    r, _ = post(a.base, image, "alexnet")
-    chk("unknown model: HTTP 400 with explanation", r.status_code == 400 and "Valid values" in r.text)
+    for bad in ("alexnet", "ensemble", "vote"):
+        r, _ = post(a.base, image, bad)
+        chk(f"unknown model '{bad}': HTTP 400 with explanation", r.status_code == 400 and "Valid values" in r.text)
 
     # 5. non-leaf still rejected in every mode
     desk = PROJECT_ROOT / "code" / "test_desk.jpg"

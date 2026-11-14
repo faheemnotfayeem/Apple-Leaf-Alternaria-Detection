@@ -1,6 +1,6 @@
 {
-  "name": "Apple Leaf Alternaria Detection",
-  "short_name": "Leaf Check",
+  "name": "AppleAlt · AI-Based Apple Leaf Alternaria Detection",
+  "short_name": "AppleAlt",
   "description": "Screen photographs of apple leaves for Alternaria leaf spot.",
   "start_url": "/",
   "display": "standalone",

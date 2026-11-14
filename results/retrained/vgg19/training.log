@@ -1,0 +1,17 @@
+[2026-10-17 06:59:40] [INFO] === Starting Training Pipeline: VGG19 ===
+[2026-10-17 06:59:40] [INFO] Execution Device: cuda
+[2026-10-17 06:59:40] [INFO] Loaded Train Manifest: 15111 samples (Healthy: 8348, Alternaria: 6763)
+[2026-10-17 06:59:40] [INFO] Loaded Val Manifest:   3239 samples (Healthy: 1789, Alternaria: 1450)
+[2026-10-17 06:59:40] [INFO] Class imbalance handling formula: N / (2 * N_c)
+[2026-10-17 06:59:40] [INFO] Class Weights [Healthy, Alternaria]: [0.905067, 1.117182]
+[2026-10-17 06:59:49] [INFO] Model Architecture: vgg19 | Total Params: 140,094,914 | Trainable Params: 122,430,338
+[2026-10-17 07:02:39] [INFO] Epoch 01/05 | Train Loss: 0.1179 Acc: 95.14% | Val Loss: 0.1050 Acc: 96.79% | 159.5s | [BEST SAVED]
+[2026-10-17 07:06:16] [INFO] Epoch 02/05 | Train Loss: 0.0463 Acc: 98.42% | Val Loss: 0.0688 Acc: 98.24% | 187.6s | [BEST SAVED]
+[2026-10-17 07:10:18] [INFO] Epoch 03/05 | Train Loss: 0.0296 Acc: 98.97% | Val Loss: 0.0650 Acc: 98.49% | 199.3s | [BEST SAVED]
+[2026-10-17 07:14:15] [INFO] Epoch 04/05 | Train Loss: 0.0276 Acc: 99.03% | Val Loss: 0.0661 Acc: 98.24% | 216.5s
+[2026-10-17 07:17:30] [INFO] Epoch 05/05 | Train Loss: 0.0242 Acc: 99.18% | Val Loss: 0.0570 Acc: 98.33% | 184.5s
+[2026-10-17 07:17:40] [INFO] Completed training in 17.85 minutes. Best Val Acc: 98.49%
+[2026-10-17 07:17:40] [INFO] Saved history CSV to: /content/apple_leaf/results/retrained/vgg19/history.csv
+[2026-10-17 07:17:41] [INFO] Verifying checkpoint loading and output shape...
+[2026-10-17 07:17:48] [INFO] Checkpoint verification passed! Output shape: [2, 2]
+[2026-10-17 07:17:48] [INFO] Removed rolling checkpoint (training complete).

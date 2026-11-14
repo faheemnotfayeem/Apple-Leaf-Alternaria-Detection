@@ -8,7 +8,7 @@ import { LeafEditorial, PhotoBand, PhotoChip } from "@/components/visuals";
 
 const STAGE_VISUALS = [
   { image: "/leaves/stage-foliage.jpg", alt: "Apple foliage on a branch" },
-  { image: "/leaves/stage-apple.jpg", alt: "Apple leaf lamina" },
+  { image: "/leaves/stage-apple.jpg", alt: "Close view of an apple leaf" },
   { image: "/leaves/stage-alternaria.jpg", alt: "Apple leaf with Alternaria lesions" },
 ];
 
@@ -30,7 +30,7 @@ export default function HomePage() {
 
           <div className="relative p-4 sm:p-8 lg:p-10 lg:[@media(max-height:820px)]:p-8">
             <div className="glass border rounded-2xl shadow-lift p-6 sm:p-7 lg:p-8 lg:[@media(max-height:820px)]:p-6 max-w-xl md:max-w-md lg:max-w-lg space-y-5 lg:[@media(max-height:820px)]:space-y-4">
-              <Eyebrow>Apple leaf health check</Eyebrow>
+              <Eyebrow>AI-Based Apple Leaf Alternaria Detection</Eyebrow>
               <h1 className="text-[2.4rem] sm:text-[3rem] lg:text-[3.1rem] xl:text-[3.3rem] lg:[@media(max-height:820px)]:text-[2.75rem] leading-[1.03] text-ink">
                 Is this apple leaf healthy? <span className="text-forest-700">Find out from a photograph.</span>
               </h1>
@@ -73,10 +73,10 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 lg:pt-28">
         <div className="max-w-2xl space-y-4">
           <Eyebrow>How a leaf check works</Eyebrow>
-          <h2 className="text-3xl sm:text-[2.25rem] leading-tight text-ink">Three checks before you see a result.</h2>
+          <h2 className="text-3xl sm:text-[2.25rem] leading-tight text-ink">From photograph to screening result.</h2>
           <p className="text-[15px] text-ink-2 leading-relaxed">
-            Every photograph passes two screening checks before the disease model runs, so a result is only given for images that look like
-            apple leaves. Each check is a fixed rule applied the same way to every image.
+            A single photograph is all it takes. The leaf is analysed by a deep learning model trained to distinguish healthy apple foliage
+            from Alternaria leaf spot, and the result is reported with the model&apos;s confidence.
           </p>
         </div>
 
@@ -198,7 +198,7 @@ export default function HomePage() {
             <h2 className="text-3xl sm:text-4xl text-ink leading-tight">Check a leaf in four steps.</h2>
             <ol className="text-[15px] text-ink-2 leading-relaxed space-y-1.5 list-decimal pl-5 marker:text-forest-700 marker:font-medium">
               <li>Upload a clear photograph of a single apple leaf.</li>
-              <li>The application checks the image, then analyses it.</li>
+              <li>Choose a model; it analyses the leaf for Alternaria leaf spot.</li>
               <li>Read the predicted class and the model&apos;s confidence score.</li>
               <li>If you wish, run all four models and compare their predictions.</li>
             </ol>

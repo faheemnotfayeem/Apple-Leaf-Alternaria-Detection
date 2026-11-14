@@ -1,5 +1,5 @@
 """
-Apple Leaf Alternaria Detection: Comprehensive Held-Out Test Evaluation
+AppleAlt: Comprehensive Held-Out Test Evaluation
 ========================================================================
 Rigorous evaluation of four candidate transfer learning architectures:
   1. MobileNetV2
@@ -317,7 +317,7 @@ def plot_comparative_charts(summary_df, save_path):
 def generate_markdown_report(summary_df, detailed_reports, save_path, test_df=None, subset_df=None):
     md = []
     md.append("# Comparative Held-Out Test Evaluation Report")
-    md.append("## Apple Leaf Alternaria Detection System")
+    md.append("## AppleAlt: AI-Based Apple Leaf Alternaria Detection")
     md.append("**Academic Context**: Final Year B.Tech Project in CSE (Batch 2022–2026), GCET Safapora, Ganderbal, Kashmir")
     md.append(f"**Evaluation Date**: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     md.append("**Pathology Classes**: Exactly two classes: `0: Healthy Apple Leaf`, `1: Alternaria Leaf Spot` (*Alternaria alternata*)")
